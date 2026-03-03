@@ -113,6 +113,7 @@ body,
   height: 60px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-surface);
+  /* Electron-specific: makes the header draggable. Safe to ignore cross-browser warnings. */
   -webkit-app-region: drag;
 }
 
@@ -148,6 +149,7 @@ body,
   display: flex;
   align-items: center;
   gap: 5px;
+  /* Electron-specific: allows interaction inside a draggable region. */
   -webkit-app-region: no-drag;
 }
 
