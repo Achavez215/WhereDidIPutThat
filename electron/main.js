@@ -1,0 +1,185 @@
+/**
+ * main.js — WhereDidIPutThat
+ * Electron main process entry point.
+ *
+ * IMPORTANT: Must be launched via the Electron binary, not node directly.
+ * Run: .\node_modules\electron\dist\electron.exe .
+ * Or:  npm run dev
+ */
+
+'use strict'
+
+const { app, BrowserWindow, ipcMain, dialog } = require('electron')
+const { autoUpdater } = require('electron-updater')
+const path = require('path')
+
+// Config auto-updater
+autoUpdater.autoDownload = false
+autoUpdater.logger = require('electron-log')
+autoUpdater.logger.transports.file.level = 'info'
+
+// Dev mode detection: env var set by npm scripts, or running from source (not asar)
+const isDev = process.env.ELECTRON_IS_DEV === '1' || !__dirname.includes('app.asar')
+
+const driveScanner = require('./core/driveScanner')
+const safetyGuard = require('./core/safetyGuard')
+const fileScanner = require('./core/fileScanner')
+const phaseEngine = require('./core/phaseEngine')
+const backupManager = require('./core/backupManager')
+const checkpointLogger = require('./core/checkpointLogger')
+const auditLogger = require('./core/auditLogger')
+const performanceController = require('./core/performanceController')
+const settingsManager = require('./core/settingsManager')
+
+let mainWindow = null
+
+function createWindow() {
+    mainWindow = new BrowserWindow({
+        width: 1280,
+        height: 820,
+        minWidth: 1024,
+        minHeight: 700,
+        backgroundColor: '#0b0d12',
+        titleBarStyle: 'hidden',
+        titleBarOverlay: {
+            color: '#0b0d12',
+            symbolColor: '#8b949e',
+            height: 36,
+        },
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: false,
+        },
+    })
+
+    if (isDev) {
+        mainWindow.loadURL('http://localhost:5173')
+        mainWindow.webContents.on('did-finish-load', () => {
+            mainWindow.webContents.openDevTools({ mode: 'detach' })
+        })
+    } else {
+        mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
+    }
+
+    mainWindow.on('closed', () => { mainWindow = null })
+}
+
+app.whenReady().then(() => {
+    createWindow()
+    app.on('activate', () => {
+        if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    })
+})
+
+app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') app.quit()
+})
+
+// ──────────────────────────────────────────────
+// IPC Handlers — Drive & Folder
+// ──────────────────────────────────────────────
+
+ipcMain.handle('drives:list', () => driveScanner.listDrives())
+
+ipcMain.handle('folder:listTopLevel', (_, drivePath) => driveScanner.listTopLevelFolders(drivePath))
+
+ipcMain.handle('folder:browse', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openDirectory'],
+        title: 'Select Destination Folder',
+    })
+    return result.canceled ? null : result.filePaths[0]
+})
+
+// ──────────────────────────────────────────────
+// IPC Handlers — Safety
+// ──────────────────────────────────────────────
+
+ipcMain.handle('safety:isProtected', (_, p) => safetyGuard.isProtected(p))
+ipcMain.handle('safety:validateTarget', (_, src, dst) => safetyGuard.validateTarget(src, dst))
+
+// ──────────────────────────────────────────────
+// IPC Handlers — Phase Engine
+// ──────────────────────────────────────────────
+
+ipcMain.handle('phase:startPhase', async (event, phaseNumber, context) => {
+    return phaseEngine.startPhase(phaseNumber, context, (progress) => {
+        if (!event.sender.isDestroyed()) event.sender.send('phase:progress', progress)
+    })
+})
+
+ipcMain.handle('phase:pause', () => performanceController.pause())
+ipcMain.handle('phase:resume', () => performanceController.resume())
+ipcMain.handle('phase:cancel', (_, ctx) => phaseEngine.cancel(ctx))
+ipcMain.handle('phase:checkCheckpoint', () => checkpointLogger.readCheckpoint())
+ipcMain.handle('phase:clearCheckpoint', () => checkpointLogger.clearCheckpoint())
+
+// ──────────────────────────────────────────────
+// IPC Handlers — Backup
+// ──────────────────────────────────────────────
+
+ipcMain.handle('backup:create', async (event, files, destDrive) => {
+    return backupManager.createBackup(files, destDrive, (p) => {
+        if (!event.sender.isDestroyed()) event.sender.send('backup:progress', p)
+    })
+})
+
+ipcMain.handle('backup:rollback', async (event, backupMeta) => {
+    return backupManager.rollback(backupMeta, (p) => {
+        if (!event.sender.isDestroyed()) event.sender.send('backup:progress', p)
+    })
+})
+
+ipcMain.handle('backup:delete', (_, backupPath) => backupManager.deleteBackup(backupPath))
+
+// ──────────────────────────────────────────────
+// IPC Handlers — Logging & Report
+// ──────────────────────────────────────────────
+
+ipcMain.handle('log:getAll', () => auditLogger.getAll())
+
+ipcMain.handle('log:export', async (_, format) => {
+    const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {
+        title: 'Export Report — WhereDidIPutThat',
+        defaultPath: `wheredidiputhat_report_${Date.now()}.${format}`,
+        filters: [{ name: format.toUpperCase(), extensions: [format] }],
+    })
+    if (canceled || !filePath) return null
+    return auditLogger.exportReport(filePath, format)
+})
+
+// ──────────────────────────────────────────────
+// IPC Handlers — Performance
+// ──────────────────────────────────────────────
+
+ipcMain.handle('perf:getStats', () => performanceController.getStats())
+
+// ──────────────────────────────────────────────
+// IPC Handlers — Settings
+// ──────────────────────────────────────────────
+
+ipcMain.handle('settings:getAll', () => settingsManager.getAll())
+ipcMain.handle('settings:update', (_, newSettings) => settingsManager.update(newSettings))
+ipcMain.handle('settings:get', (_, key) => settingsManager.get(key))
+
+// ──────────────────────────────────────────────
+// IPC Handlers — Updates
+// ──────────────────────────────────────────────
+
+ipcMain.handle('updates:check', () => {
+    if (isDev) {
+        return { status: 'dev', message: 'Update checks disabled in development mode.' }
+    }
+    return autoUpdater.checkForUpdatesAndNotify()
+})
+
+autoUpdater.on('update-available', () => {
+    if (mainWindow) mainWindow.webContents.send('update:available')
+})
+
+autoUpdater.on('update-downloaded', () => {
+    if (mainWindow) mainWindow.webContents.send('update:downloaded')
+})
+

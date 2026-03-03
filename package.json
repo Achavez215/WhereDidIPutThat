@@ -1,0 +1,54 @@
+{
+    "name": "where-did-i-put-that",
+    "productName": "WhereDidIPutThat",
+    "version": "1.0.0",
+    "description": "WhereDidIPutThat — Local Phased File Organization System (Safe Mode Architecture)",
+    "main": "electron/main.js",
+    "scripts": {
+        "dev": "concurrently \"vite --port 5173\" \"wait-on http://localhost:5173 && set ELECTRON_IS_DEV=1 && .\\node_modules\\electron\\dist\\electron.exe .\"",
+        "dev:vite": "vite --port 5173",
+        "dev:electron": "set ELECTRON_IS_DEV=1 && .\\node_modules\\electron\\dist\\electron.exe .",
+        "start": ".\\node_modules\\electron\\dist\\electron.exe .",
+        "build": "vite build",
+        "package": "vite build && electron-builder"
+    },
+    "dependencies": {
+        "electron-updater": "^6.8.3",
+        "zustand": "^4.5.2"
+    },
+    "devDependencies": {
+        "@vitejs/plugin-react": "^4.2.1",
+        "concurrently": "^8.2.2",
+        "electron": "^30.0.0",
+        "electron-builder": "^24.13.3",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1",
+        "vite": "^5.2.11",
+        "wait-on": "^7.2.0"
+    },
+    "build": {
+        "appId": "com.local.wheredidiputhat",
+        "productName": "WhereDidIPutThat",
+        "directories": {
+            "output": "dist-electron"
+        },
+        "files": [
+            "dist/**/*",
+            "electron/**/*",
+            "package.json"
+        ],
+        "win": {
+            "target": "nsis",
+            "icon": "build/icon.ico"
+        },
+        "mac": {
+            "target": "dmg",
+            "icon": "build/icon.icns",
+            "category": "public.app-category.utilities"
+        },
+        "nsis": {
+            "oneClick": false,
+            "allowToChangeInstallationDirectory": true
+        }
+    }
+}
