@@ -9,7 +9,7 @@
 
 'use strict'
 
-const { app, BrowserWindow, ipcMain, dialog } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog } = require('./electron-api')
 const { autoUpdater } = require('electron-updater')
 const path = require('path')
 

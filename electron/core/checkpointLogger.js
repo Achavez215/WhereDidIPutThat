@@ -1,7 +1,7 @@
 /**
  * checkpointLogger.js
  * Writes & reads phase checkpoint files to survive crashes.
- * Location: %APPDATA%\FileOrganizer\checkpoint.json
+ * Location: [App Data]/WhereDidIPutThat/checkpoints/session_checkpoint.json
  */
 
 const fs = require('fs')
@@ -11,7 +11,7 @@ const pathManager = require('./pathManager')
 const CHECKPOINT_FILE = pathManager.getCheckpointFile()
 
 function ensureDir() {
-    // pathManager handles dir creation
+    // pathManager handles dir creation in getCheckpointFile()
 }
 
 /**
@@ -57,4 +57,4 @@ function clearCheckpoint() {
     }
 }
 
-module.exports = { writeCheckpoint, readCheckpoint, clearCheckpoint, CHECKPOINT_DIR }
+module.exports = { writeCheckpoint, readCheckpoint, clearCheckpoint }
