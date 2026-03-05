@@ -37,3 +37,5 @@ checkpoints/
 # OS specific
 Thumbs.db
 Desktop.ini
+*.exe
+*.zip
