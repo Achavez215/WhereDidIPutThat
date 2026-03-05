@@ -100,5 +100,5 @@ async function runTests() {
 
 runTests().catch(err => {
     console.error('Test failed:', err)
-    process.exit(1)
+    if (typeof Deno !== "undefined") { Deno.exit(1); } else if (typeof process !== "undefined") { process.exit(1); }
 })

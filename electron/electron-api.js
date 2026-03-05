@@ -49,7 +49,7 @@ if (!api || typeof api === 'string') {
         console.error('[WhereDidIPutThat] ERROR: ELECTRON_RUN_AS_NODE is set to 1. This disables Electron APIs.')
         console.error('[WhereDidIPutThat] FIX: Unset it with: $env:ELECTRON_RUN_AS_NODE = $null')
     }
-    process.exit(1)
+    if (typeof Deno !== "undefined") { Deno.exit(1); } else if (typeof process !== "undefined") { process.exit(1); }
 }
 
 module.exports = api

@@ -13,7 +13,7 @@ const { app, BrowserWindow, ipcMain, dialog, session, nativeTheme } = electron
 
 if (!app) {
     console.error('CRITICAL: Electron app object is undefined.')
-    process.exit(1)
+    if (typeof Deno !== "undefined") { Deno.exit(1); } else if (typeof process !== "undefined") { process.exit(1); }
 }
 
 const path = require('path')
