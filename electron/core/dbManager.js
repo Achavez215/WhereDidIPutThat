@@ -34,7 +34,7 @@ function initDb() {
     db.pragma('synchronous = NORMAL');
 
     db.exec(`
-        CREATE TABLE files (
+        CREATE TABLE IF NOT EXISTS manifest (
             id TEXT PRIMARY KEY,
             name TEXT,
             ext TEXT,
@@ -42,23 +42,25 @@ function initDb() {
             srcPath TEXT UNIQUE,
             size INTEGER,
             modified INTEGER,
-            suggestedDst TEXT
+            suggestedDst TEXT,
+            actualDst TEXT,
+            collisionHandled INTEGER DEFAULT 0
         )
     `);
 
     // Index for faster category-based UI pagination
-    db.exec(`CREATE INDEX idx_files_category ON files(category)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_manifest_category ON manifest(category)`);
 }
 
 /**
- * insertFiles(filesArray)
+ * insertBatch(filesArray)
  * Batch inserts file entries using a transaction for speed.
  */
-function insertFiles(filesArray) {
+function insertBatch(filesArray) {
     if (!db) return;
 
     const insert = db.prepare(`
-        INSERT OR IGNORE INTO files 
+        INSERT OR IGNORE INTO manifest 
         (id, name, ext, category, srcPath, size, modified) 
         VALUES (@id, @name, @ext, @category, @srcPath, @size, @modified)
     `);
@@ -76,7 +78,7 @@ function insertFiles(filesArray) {
  */
 function updateSuggestedDst(fileId, dst) {
     if (!db) return;
-    db.prepare('UPDATE files SET suggestedDst = ? WHERE id = ?').run(dst, fileId);
+    db.prepare('UPDATE manifest SET suggestedDst = ? WHERE id = ?').run(dst, fileId);
 }
 
 /**
@@ -85,21 +87,21 @@ function updateSuggestedDst(fileId, dst) {
  */
 function getPlannedMoves() {
     if (!db) return [];
-    return db.prepare('SELECT * FROM files WHERE suggestedDst IS NOT NULL AND suggestedDst != ""').all();
+    return db.prepare('SELECT * FROM manifest WHERE suggestedDst IS NOT NULL AND suggestedDst != ""').all();
 }
 
 /**
- * getFilesByCategory(category, limit, offset)
+ * getFiles(category, limit, offset)
  * Returns a slice of files for paginated UI display.
  */
-function getFilesByCategory(category, limit = 50, offset = 0) {
+function getFiles(category = 'all', limit = 50, offset = 0) {
     if (!db) return [];
 
     if (category === 'all') {
-        return db.prepare('SELECT * FROM files LIMIT ? OFFSET ?').all(limit, offset);
+        return db.prepare('SELECT * FROM manifest ORDER BY size DESC LIMIT ? OFFSET ?').all(limit, offset);
     }
 
-    return db.prepare('SELECT * FROM files WHERE category = ? LIMIT ? OFFSET ?')
+    return db.prepare('SELECT * FROM manifest WHERE category = ? ORDER BY size DESC LIMIT ? OFFSET ?')
         .all(category, limit, offset);
 }
 
@@ -109,19 +111,19 @@ function getFilesByCategory(category, limit = 50, offset = 0) {
  */
 function getAllFiles() {
     if (!db) return [];
-    return db.prepare('SELECT * FROM files').all();
+    return db.prepare('SELECT * FROM manifest').all();
 }
 
 /**
- * getTotalStats()
+ * getStats()
  * Returns aggregate counts and sizes per category.
  */
-function getTotalStats() {
-    if (!db) return [];
+function getStats() {
+    if (!db) return { total: 0, totalSize: 0, byCategory: {} };
 
     const results = db.prepare(`
         SELECT category, COUNT(*) as count, SUM(size) as totalSize 
-        FROM files GROUP BY category
+        FROM manifest GROUP BY category
     `).all();
 
     const byCategory = {};
@@ -152,9 +154,11 @@ function clearDb() {
 
 module.exports = {
     initDb,
-    insertFiles,
-    getFilesByCategory,
+    insertBatch,
+    getFiles,
     getAllFiles,
-    getTotalStats,
+    getStats,
+    updateSuggestedDst,
+    getPlannedMoves,
     clearDb
 };

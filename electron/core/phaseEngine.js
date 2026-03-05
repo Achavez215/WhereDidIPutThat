@@ -79,7 +79,7 @@ async function phase1_scan(context, onProgress) {
 async function phase2_preview(context, onProgress) {
     onProgress({ phase: 2, status: 'preview', message: 'Generating AI-driven action plan…' })
 
-    const stats = dbManager.getTotalStats()
+    const stats = dbManager.getStats()
     const { selectedDrive, destinationMap } = context
     const baseDir = selectedDrive?.mountPath || 'C:\\'
 

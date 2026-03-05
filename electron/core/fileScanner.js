@@ -84,10 +84,10 @@ async function scanFolders(folderPaths, onProgress) {
 
     // Flush remaining buffer
     if (fileBuffer.length > 0) {
-        dbManager.insertFiles(fileBuffer)
+        dbManager.insertBatch(fileBuffer)
     }
 
-    const stats = dbManager.getTotalStats()
+    const stats = dbManager.getStats()
     // Write checkpoint for Phase 1 completion
     checkpointLogger.writeCheckpoint({ phase: 1, tree, stats, folderPaths })
 
@@ -156,12 +156,11 @@ async function walkDir(dirPath, parentNode, manifest, onFile, state) {
                 if (manifest.length >= MAX_MANIFEST_FILES) {
                     throw new Error(`Out of Memory Protection: Scan limit of ${MAX_MANIFEST_FILES} files reached.`)
                 }
-                parentNode.children.push({ ...fileEntry, type: 'file' })
                 parentNode.stats[category] = (parentNode.stats[category] || 0) + 1
 
                 manifest.push(fileEntry)
                 if (manifest.length >= 500) {
-                    dbManager.insertFiles(manifest.splice(0, manifest.length))
+                    dbManager.insertBatch(manifest.splice(0, manifest.length))
                 }
 
                 onFile()
