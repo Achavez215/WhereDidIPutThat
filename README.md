@@ -3,7 +3,7 @@
 > Safe, offline file organizer — Electron desktop app with phased execution, backup/rollback, and multi-user support.
 
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-blue)
-![License](https://img.shields.io/badge/License-MIT-green)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue)](./LICENSE)
 ![Status](https://img.shields.io/badge/Status-Active%20Development-orange)
 
 ## Overview
@@ -124,4 +124,6 @@ WhereDidIPutThat/
 
 ## License
 
-MIT
+This project is licensed under the [Apache License 2.0](./LICENSE).
+
+Copyright 2026 Andres Chavez Ramirez
