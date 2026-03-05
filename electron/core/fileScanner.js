@@ -5,11 +5,14 @@
  */
 
 const fs = require('fs')
+const fsPromises = fs.promises
 const path = require('path')
 const safetyGuard = require('./safetyGuard')
 const checkpointLogger = require('./checkpointLogger')
+const pathManager = require('./pathManager')
 
 const BATCH_SIZE = 200
+const YIELD_THRESHOLD = 500 // Yield event loop every N entries
 
 // ──────────────────────────────────────────────
 // Classification rules
@@ -71,7 +74,7 @@ async function scanFolders(folderPaths, onProgress) {
                 // Return partial stats so UI can show progress count
                 onProgress({ type: 'count', scanned, currentFile: folderPath })
             }
-        })
+        }, { entryCount: 0 })
     }
 
     const stats = buildStats(manifest)
@@ -83,55 +86,72 @@ async function scanFolders(folderPaths, onProgress) {
     return { tree, manifest, stats }
 }
 
-async function walkDir(dirPath, parentNode, manifest, onFile) {
-    let entries
+async function walkDir(dirPath, parentNode, manifest, onFile, state) {
+    let dir
+    const longDirPath = pathManager.toLongPath(dirPath)
     try {
-        entries = fs.readdirSync(dirPath, { withFileTypes: true })
+        dir = await fsPromises.opendir(longDirPath)
     } catch {
         return
     }
 
-    for (const entry of entries) {
-        const fullPath = path.join(dirPath, entry.name)
-        if (entry.name.startsWith('.')) continue
-        if (safetyGuard.isProtected(fullPath)) continue
-
-        if (entry.isDirectory()) {
-            const folderNode = {
-                name: entry.name,
-                path: fullPath,
-                type: 'folder',
-                children: [],
-                stats: { images: 0, videos: 0, pdfs: 0, word_docs: 0, archives: 0, applications: 0, documents: 0, audio: 0, other: 0 }
-            }
-            parentNode.children.push(folderNode)
-            await walkDir(fullPath, folderNode, manifest, onFile)
-
-            // Bubble up stats to parent
-            for (const cat in folderNode.stats) {
-                parentNode.stats[cat] += folderNode.stats[cat]
-            }
-        } else if (entry.isFile()) {
-            if (safetyGuard.isProtectedExtension(fullPath)) continue
-            let stat
-            try { stat = fs.statSync(fullPath) } catch { continue }
-
-            const category = classifyFile(fullPath)
-            const fileEntry = {
-                id: `f_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-                name: entry.name,
-                ext: path.extname(entry.name).toLowerCase(),
-                category: category,
-                srcPath: fullPath,
-                size: stat.size,
-                modified: stat.mtimeMs,
+    try {
+        for await (const entry of dir) {
+            state.entryCount++
+            // Yield to event loop periodically to keep main thread and IPC responsive
+            if (state.entryCount % YIELD_THRESHOLD === 0) {
+                await new Promise(resolve => setImmediate(resolve))
             }
 
-            manifest.push(fileEntry)
-            parentNode.children.push({ ...fileEntry, type: 'file' })
-            parentNode.stats[category] = (parentNode.stats[category] || 0) + 1
-            onFile()
+            const fullPath = path.join(dirPath, entry.name)
+            const longFullPath = pathManager.toLongPath(fullPath)
+            if (entry.name.startsWith('.')) continue
+            if (safetyGuard.isProtected(fullPath)) continue
+
+            if (entry.isDirectory()) {
+                const folderNode = {
+                    name: entry.name,
+                    path: fullPath,
+                    type: 'folder',
+                    children: [],
+                    stats: { images: 0, videos: 0, pdfs: 0, word_docs: 0, archives: 0, applications: 0, documents: 0, audio: 0, other: 0 }
+                }
+                parentNode.children.push(folderNode)
+                await walkDir(fullPath, folderNode, manifest, onFile, state)
+
+                // Bubble up stats to parent
+                for (const cat in folderNode.stats) {
+                    parentNode.stats[cat] += folderNode.stats[cat]
+                }
+            } else if (entry.isFile()) {
+                if (safetyGuard.isProtectedExtension(fullPath)) continue
+                let stat
+                try {
+                    stat = await fsPromises.stat(longFullPath)
+                } catch {
+                    continue
+                }
+
+                const category = classifyFile(fullPath)
+                const fileEntry = {
+                    id: `f_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                    name: entry.name,
+                    ext: path.extname(entry.name).toLowerCase(),
+                    category: category,
+                    srcPath: fullPath,
+                    size: stat.size,
+                    modified: stat.mtimeMs,
+                }
+
+                manifest.push(fileEntry)
+                parentNode.children.push({ ...fileEntry, type: 'file' })
+                parentNode.stats[category] = (parentNode.stats[category] || 0) + 1
+                onFile()
+            }
         }
+    } catch (err) {
+        // Directory may have been removed or perms changed mid-scan
+        return
     }
 }
 

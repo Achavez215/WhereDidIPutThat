@@ -32,7 +32,7 @@ function checkDiskSpace(targetPath, requiredBytes = 0) {
             checkPath = parent
         }
 
-        const stats = fs.statfsSync(checkPath)
+        const stats = fs.statfsSync(require('./pathManager').toLongPath(checkPath))
         // bsize = block size in bytes, bfree = free blocks (for root), bavail = free blocks for non-root
         const freeBytes = stats.bavail * stats.bsize
 

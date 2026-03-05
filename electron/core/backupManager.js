@@ -29,13 +29,17 @@ async function createBackup(files, destDrive, onProgress) {
 
     // ── Disk space pre-check ─────────────────────────────────────
     const totalSizeBytes = files.reduce((sum, f) => sum + (f.size || 0), 0)
-    const spaceCheck = diskUtils.checkDiskSpace(destDrive || os.homedir(), totalSizeBytes)
+    // Overhead: Backup + Final Destination (if on the same drive)
+    // For simplicity, we check for 2.1x the size to be extremely safe
+    const requiredSpace = Math.ceil(totalSizeBytes * 2.1)
+
+    const spaceCheck = diskUtils.checkDiskSpace(destDrive || os.homedir(), requiredSpace)
     if (!spaceCheck.ok) {
-        return { ok: false, error: spaceCheck.message }
+        return { ok: false, error: `Insufficient space for safe operation. ${spaceCheck.message} (Estimated overhead: 2.1x total size)` }
     }
 
     try {
-        fs.mkdirSync(backupPath, { recursive: true })
+        fs.mkdirSync(pathManager.toLongPath(backupPath), { recursive: true })
     } catch (err) {
         return { ok: false, error: `Could not create backup folder: ${err.message}` }
     }
@@ -58,8 +62,8 @@ async function createBackup(files, destDrive, onProgress) {
             const dstPath = path.join(backupPath, relPath)
 
             try {
-                fs.mkdirSync(path.dirname(dstPath), { recursive: true })
-                fs.copyFileSync(file.srcPath, dstPath)
+                fs.mkdirSync(pathManager.toLongPath(path.dirname(dstPath)), { recursive: true })
+                fs.copyFileSync(pathManager.toLongPath(file.srcPath), pathManager.toLongPath(dstPath))
                 backupManifest.push({ original: file.srcPath, backup: dstPath, size: file.size })
                 copied++
                 performanceController.increment()
@@ -80,7 +84,7 @@ async function createBackup(files, destDrive, onProgress) {
 
     // Write backup manifest
     const manifestPath = path.join(backupPath, 'backup_manifest.json')
-    fs.writeFileSync(manifestPath, JSON.stringify({
+    fs.writeFileSync(pathManager.toLongPath(manifestPath), JSON.stringify({
         createdAt: new Date().toISOString(),
         backupPath,
         fileCount: copied,
@@ -118,8 +122,8 @@ async function rollback(backupMeta, onProgress) {
         const batch = entries.slice(i, i + BATCH_SIZE)
         for (const entry of batch) {
             try {
-                fs.mkdirSync(path.dirname(entry.original), { recursive: true })
-                fs.copyFileSync(entry.backup, entry.original)
+                fs.mkdirSync(pathManager.toLongPath(path.dirname(entry.original)), { recursive: true })
+                fs.copyFileSync(pathManager.toLongPath(entry.backup), pathManager.toLongPath(entry.original))
                 restored++
                 performanceController.increment()
                 auditLogger.log({ phase: 4, action: 'ROLLBACK', srcPath: entry.backup, dstPath: entry.original })
@@ -150,7 +154,7 @@ function deleteBackup(backupPath) {
         if (!path.basename(backupPath).startsWith('FileOrg_Backup_')) {
             return { ok: false, error: 'Path does not appear to be a FileOrg backup folder.' }
         }
-        fs.rmSync(backupPath, { recursive: true, force: true })
+        fs.rmSync(pathManager.toLongPath(backupPath), { recursive: true, force: true })
         auditLogger.log({ phase: 6, action: 'BACKUP_DELETED', dstPath: backupPath })
         return { ok: true }
     } catch (err) {

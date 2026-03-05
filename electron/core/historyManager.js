@@ -15,29 +15,31 @@ const backupManager = require('./backupManager');
  */
 async function getSessionHistory(destDrive) {
     const backupRoot = pathManager.getBackupRootDir(destDrive);
+    const longBackupRoot = pathManager.toLongPath(backupRoot);
 
-    if (!fs.existsSync(backupRoot)) {
+    if (!fs.existsSync(longBackupRoot)) {
         return [];
     }
 
     try {
-        const dirs = fs.readdirSync(backupRoot);
+        const dirs = fs.readdirSync(longBackupRoot);
         const history = [];
 
         for (const dirName of dirs) {
             if (!dirName.startsWith('FileOrg_Backup_')) continue;
 
             const fullPath = path.join(backupRoot, dirName);
-            const stats = fs.statSync(fullPath);
+            const longFullPath = pathManager.toLongPath(fullPath);
+            const stats = fs.statSync(longFullPath);
             if (!stats.isDirectory()) continue;
 
             const manifestPath = path.join(fullPath, 'backup_manifest.json');
             let manifest = null;
             let status = 'completed';
 
-            if (fs.existsSync(manifestPath)) {
+            if (fs.existsSync(pathManager.toLongPath(manifestPath))) {
                 try {
-                    manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+                    manifest = JSON.parse(fs.readFileSync(pathManager.toLongPath(manifestPath), 'utf8'));
                     // Check if a rollback log exists or if the backup folder is empty/removed
                     // (Actually, if it's in this list, it hasn't been deleted yet)
                 } catch (e) {
@@ -72,7 +74,7 @@ async function undoSession(sessionId, destDrive, onProgress) {
     const sessionPath = path.join(backupRoot, sessionId);
     const manifestPath = path.join(sessionPath, 'backup_manifest.json');
 
-    if (!fs.existsSync(manifestPath)) {
+    if (!fs.existsSync(pathManager.toLongPath(manifestPath))) {
         throw new Error('Backup manifest not found for this session.');
     }
 

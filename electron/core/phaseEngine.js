@@ -22,7 +22,7 @@ let _cancelled = false
 function hashFile(filePath) {
     try {
         const hash = crypto.createHash('sha256')
-        const data = fs.readFileSync(filePath)
+        const data = fs.readFileSync(require('./pathManager').toLongPath(filePath))
         hash.update(data)
         return hash.digest('hex')
     } catch {
@@ -155,7 +155,7 @@ async function phase4_execute(context, onProgress) {
             }
 
             try {
-                fs.mkdirSync(path.dirname(move.dstPath), { recursive: true })
+                fs.mkdirSync(require('./pathManager').toLongPath(path.dirname(move.dstPath)), { recursive: true })
             } catch (err) {
                 // If directory creation fails, log it
                 auditLogger.log({ phase: 4, action: 'ERROR', srcPath: move.srcPath, dstPath: move.dstPath, error: `Dir creation failed: ${err.message}` })
@@ -168,17 +168,17 @@ async function phase4_execute(context, onProgress) {
                 const srcHash = hashFile(move.srcPath)
                 if (!srcHash) throw new Error("Could not read source file hash")
 
-                fs.copyFileSync(move.srcPath, move.dstPath)
+                fs.copyFileSync(require('./pathManager').toLongPath(move.srcPath), require('./pathManager').toLongPath(move.dstPath))
 
                 const dstHash = hashFile(move.dstPath)
                 if (srcHash !== dstHash) {
                     // Safety check: if copying somehow corrupted the file, delete the bad copy
-                    try { if (fs.existsSync(move.dstPath)) fs.unlinkSync(move.dstPath) } catch { }
+                    try { if (fs.existsSync(require('./pathManager').toLongPath(move.dstPath))) fs.unlinkSync(require('./pathManager').toLongPath(move.dstPath)) } catch { }
                     throw new Error(`Data integrity failure: Hash mismatch after copy. Operation aborted for this file.`)
                 }
 
                 // Verification successful, delete source
-                fs.unlinkSync(move.srcPath)
+                fs.unlinkSync(require('./pathManager').toLongPath(move.srcPath))
 
                 movedFiles[move.srcPath] = move.dstPath
                 auditLogger.log({
@@ -252,13 +252,13 @@ async function phase5_validate(context, onProgress) {
     let passed = 0, missing = 0, corrupt = 0
 
     for (const [src, dst] of sample) {
-        if (!fs.existsSync(dst)) {
+        if (!fs.existsSync(require('./pathManager').toLongPath(dst))) {
             missing++
             auditLogger.log({ phase: 5, action: 'VALIDATION_FAILED', message: 'File missing', dstPath: dst })
         } else {
             // Check if it's actually readable and not empty
             try {
-                const stat = fs.statSync(dst)
+                const stat = fs.statSync(require('./pathManager').toLongPath(dst))
                 if (stat.size > 0) {
                     passed++
                 } else {
@@ -303,7 +303,8 @@ async function phase7_cleanup(context, onProgress) {
 
     function findEmpty(dir) {
         try {
-            const entries = fs.readdirSync(dir, { withFileTypes: true })
+            const longDir = require('./pathManager').toLongPath(dir)
+            const entries = fs.readdirSync(longDir, { withFileTypes: true })
             if (entries.length === 0) {
                 emptyFolders.push(dir)
                 return true
@@ -334,9 +335,10 @@ async function phase7_cleanup(context, onProgress) {
 
     for (const folder of emptyFolders) {
         try {
+            const longFolder = require('./pathManager').toLongPath(folder)
             // Safety check: ensure it's still empty (could have changed)
-            if (fs.readdirSync(folder).length === 0) {
-                fs.rmSync(folder, { recursive: true, force: true })
+            if (fs.readdirSync(longFolder).length === 0) {
+                fs.rmSync(longFolder, { recursive: true, force: true })
                 auditLogger.log({ phase: 7, action: 'CLEANUP', dstPath: folder, status: 'DELETED' })
                 deleted++
             }
@@ -361,11 +363,13 @@ async function startRollback(movedFiles, onProgress) {
 
     for (const [src, dst] of entries) {
         try {
-            if (fs.existsSync(dst)) {
+            const longSrc = require('./pathManager').toLongPath(src)
+            const longDst = require('./pathManager').toLongPath(dst)
+            if (fs.existsSync(longDst)) {
                 // To rollback, we copy back from dst to src, then delete dst
-                fs.mkdirSync(path.dirname(src), { recursive: true })
-                fs.copyFileSync(dst, src)
-                fs.unlinkSync(dst)
+                fs.mkdirSync(path.dirname(longSrc), { recursive: true })
+                fs.copyFileSync(longDst, longSrc)
+                fs.unlinkSync(longDst)
                 auditLogger.log({ action: 'ROLLBACK', src, dst, status: 'OK' })
             }
             processed++
@@ -404,8 +408,9 @@ async function startCleanup(context) {
     let deleted = 0
     for (const folder of context.folders || []) {
         try {
-            if (fs.existsSync(folder) && fs.readdirSync(folder).length === 0) {
-                fs.rmdirSync(folder)
+            const longFolder = require('./pathManager').toLongPath(folder)
+            if (fs.existsSync(longFolder) && fs.readdirSync(longFolder).length === 0) {
+                fs.rmdirSync(longFolder)
                 deleted++
             }
         } catch { }

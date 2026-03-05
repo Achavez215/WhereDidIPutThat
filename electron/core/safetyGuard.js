@@ -74,7 +74,16 @@ const PROTECTED_EXTENSIONS = new Set([
 ])
 
 function normalize(p) {
-    return path.normalize(p || '').toLowerCase().replace(/\\/g, '/')
+    let norm = p || ''
+    // Strip Windows extended-length path prefix for consistent comparison
+    if (norm.startsWith('\\\\?\\')) {
+        norm = norm.substring(4)
+        // Handle \\?\UNC\ prefix
+        if (norm.toLowerCase().startsWith('unc\\')) {
+            norm = '\\\\' + norm.substring(4)
+        }
+    }
+    return path.normalize(norm).toLowerCase().replace(/\\/g, '/')
 }
 
 /**

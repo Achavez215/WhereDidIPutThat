@@ -32,9 +32,10 @@ let _settings = null
 function load() {
     if (_settings) return _settings
     const filePath = pathManager.getSettingsFile()
+    const longFile = pathManager.toLongPath(filePath)
     try {
-        if (fs.existsSync(filePath)) {
-            const raw = fs.readFileSync(filePath, 'utf8')
+        if (fs.existsSync(longFile)) {
+            const raw = fs.readFileSync(longFile, 'utf8')
             _settings = { ...DEFAULT_SETTINGS, ...JSON.parse(raw) }
         } else {
             _settings = { ...DEFAULT_SETTINGS }
@@ -49,7 +50,7 @@ function load() {
 function save() {
     const filePath = pathManager.getSettingsFile()
     try {
-        fs.writeFileSync(filePath, JSON.stringify(_settings, null, 2), 'utf8')
+        fs.writeFileSync(pathManager.toLongPath(filePath), JSON.stringify(_settings, null, 2), 'utf8')
     } catch (err) {
         console.error('Failed to save settings:', err)
     }

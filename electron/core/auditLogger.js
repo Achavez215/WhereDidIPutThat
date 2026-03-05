@@ -17,11 +17,12 @@ function ensureDir() {
 
 function rotateLogs() {
     try {
-        const stat = fs.existsSync(LOG_FILE) ? fs.statSync(LOG_FILE) : null
+        const longFile = pathManager.toLongPath(LOG_FILE)
+        const stat = fs.existsSync(longFile) ? fs.statSync(longFile) : null
         if (stat && stat.size > MAX_LOG_BYTES) {
             const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
             const archivePath = LOG_FILE.replace('.jsonl', `_${ts}.jsonl`)
-            fs.renameSync(LOG_FILE, archivePath)
+            fs.renameSync(longFile, pathManager.toLongPath(archivePath))
         }
     } catch { }
 }
@@ -36,7 +37,7 @@ function log(entry) {
         ts: new Date().toISOString(),
         ...entry,
     }) + '\n'
-    fs.appendFileSync(LOG_FILE, line, 'utf8')
+    fs.appendFileSync(pathManager.toLongPath(LOG_FILE), line, 'utf8')
 }
 
 /**
@@ -44,8 +45,9 @@ function log(entry) {
  */
 function getAll() {
     try {
-        if (!fs.existsSync(LOG_FILE)) return []
-        const raw = fs.readFileSync(LOG_FILE, 'utf8')
+        const longLog = pathManager.toLongPath(LOG_FILE)
+        if (!fs.existsSync(longLog)) return []
+        const raw = fs.readFileSync(longLog, 'utf8')
         return raw
             .split('\n')
             .filter(Boolean)
@@ -64,14 +66,15 @@ function getAll() {
 function exportReport(filePath, format) {
     try {
         const entries = getAll()
+        const longFile = pathManager.toLongPath(filePath)
         if (format === 'json') {
-            fs.writeFileSync(filePath, JSON.stringify(entries, null, 2), 'utf8')
+            fs.writeFileSync(longFile, JSON.stringify(entries, null, 2), 'utf8')
         } else if (format === 'csv') {
             const headers = ['ts', 'phase', 'action', 'srcPath', 'dstPath', 'size', 'status', 'error']
             const rows = entries.map(e =>
                 headers.map(h => JSON.stringify(e[h] ?? '')).join(',')
             )
-            fs.writeFileSync(filePath, [headers.join(','), ...rows].join('\n'), 'utf8')
+            fs.writeFileSync(longFile, [headers.join(','), ...rows].join('\n'), 'utf8')
         } else if (format === 'html') {
             const rows = entries.map(e => `
                 <tr>
@@ -120,7 +123,7 @@ function exportReport(filePath, format) {
 </table>
 </body>
 </html>`
-            fs.writeFileSync(filePath, html, 'utf8')
+            fs.writeFileSync(require('./pathManager').toLongPath(filePath), html, 'utf8')
         }
         return { ok: true, filePath }
     } catch (err) {
@@ -133,7 +136,8 @@ function exportReport(filePath, format) {
  */
 function clearLog() {
     try {
-        if (fs.existsSync(LOG_FILE)) fs.unlinkSync(LOG_FILE)
+        const longLog = pathManager.toLongPath(LOG_FILE)
+        if (fs.existsSync(longLog)) fs.unlinkSync(longLog)
         return { ok: true }
     } catch (err) {
         return { ok: false, error: err.message }

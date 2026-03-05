@@ -51,10 +51,30 @@ function getBackupRootDir(driveRoot) {
     return dir
 }
 
+/**
+ * toLongPath(p)
+ * Prepends \\?\ to absolute Windows paths to bypass the 260-char MAX_PATH limit.
+ */
+function toLongPath(p) {
+    if (process.platform !== 'win32' || !p) return p
+    try {
+        const resolved = path.resolve(p)
+        if (resolved.startsWith('\\\\?\\')) return resolved
+        // Handle UNC paths: \\server\share -> \\?\UNC\server\share
+        if (resolved.startsWith('\\\\')) {
+            return `\\\\?\\UNC\\${resolved.substring(2)}`
+        }
+        return `\\\\?\\${resolved}`
+    } catch {
+        return p
+    }
+}
+
 module.exports = {
     getAppDataPath,
     getLogFile,
     getCheckpointFile,
     getSettingsFile,
-    getBackupRootDir
+    getBackupRootDir,
+    toLongPath
 }
