@@ -1,0 +1,17 @@
+C:\Users\omg\OneDrive\Credit_Dispute_Letters\Desktop\WhereDidIPutThat\node_modules\electron-updater\out\ElectronAppAdapter.js:14
+        return this.app.getVersion();
+                        ^
+
+TypeError: Cannot read properties of undefined (reading 'getVersion')
+    at get version (C:\Users\omg\OneDrive\Credit_Dispute_Letters\Desktop\WhereDidIPutThat\node_modules\electron-updater\out\ElectronAppAdapter.js:14:25)
+    at new AppUpdater (C:\Users\omg\OneDrive\Credit_Dispute_Letters\Desktop\WhereDidIPutThat\node_modules\electron-updater\out\AppUpdater.js:212:47)
+    at new BaseUpdater (C:\Users\omg\OneDrive\Credit_Dispute_Letters\Desktop\WhereDidIPutThat\node_modules\electron-updater\out\BaseUpdater.js:8:9)
+    at new NsisUpdater (C:\Users\omg\OneDrive\Credit_Dispute_Letters\Desktop\WhereDidIPutThat\node_modules\electron-updater\out\NsisUpdater.js:15:9)
+    at doLoadAutoUpdater (C:\Users\omg\OneDrive\Credit_Dispute_Letters\Desktop\WhereDidIPutThat\node_modules\electron-updater\out\main.js:45:24)
+    at Object.get [as autoUpdater] (C:\Users\omg\OneDrive\Credit_Dispute_Letters\Desktop\WhereDidIPutThat\node_modules\electron-updater\out\main.js:81:32)
+    at Object.<anonymous> (C:\Users\omg\OneDrive\Credit_Dispute_Letters\Desktop\WhereDidIPutThat\electron\main.js:13:9)
+    at Module._compile (node:internal/modules/cjs/loader:1820:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1953:10)
+    at Module.load (node:internal/modules/cjs/loader:1540:32)
+
+Node.js v24.14.0
