@@ -34,6 +34,7 @@
     "build": {
         "appId": "com.local.wheredidiputhat",
         "productName": "WhereDidIPutThat",
+        "asar": false,
         "publish": {
             "provider": "github",
             "owner": "Achavez215",
@@ -48,10 +49,7 @@
             "package.json"
         ],
         "win": {
-            "target": [
-                "nsis",
-                "portable"
-            ],
+            "target": "portable",
             "icon": "build/icon.ico"
         },
         "mac": {

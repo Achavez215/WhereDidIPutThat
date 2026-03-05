@@ -12,8 +12,8 @@
 const { app, BrowserWindow, ipcMain, dialog, session, nativeTheme } = require('electron')
 const path = require('path')
 
-// Dev mode detection: env var set by npm scripts, or running from source (not asar)
-const isDev = process.env.ELECTRON_IS_DEV === '1' || !__dirname.includes('app.asar')
+// Dev mode detection: env var or not packaged
+const isDev = process.env.ELECTRON_IS_DEV === '1' || !app.isPackaged
 
 const driveScanner = require(path.join(__dirname, 'core', 'driveScanner'))
 const safetyGuard = require(path.join(__dirname, 'core', 'safetyGuard'))
@@ -111,8 +111,8 @@ app.whenReady().then(() => {
     const CSP_PROD = [
         "default-src 'self'",
         "script-src 'self'",
-        "style-src 'self' 'unsafe-inline'",
-        "font-src 'self' data:",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' data: https://fonts.gstatic.com",
         "img-src 'self' data: blob:",
         "connect-src 'none'",
         "object-src 'none'",
