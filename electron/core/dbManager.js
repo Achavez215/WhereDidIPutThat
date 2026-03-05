@@ -44,7 +44,8 @@ function initDb() {
             modified INTEGER,
             suggestedDst TEXT,
             actualDst TEXT,
-            collisionHandled INTEGER DEFAULT 0
+            collisionHandled INTEGER DEFAULT 0,
+            isDuplicate INTEGER DEFAULT 0
         )
     `);
 
@@ -79,6 +80,11 @@ function insertBatch(filesArray) {
 function updateSuggestedDst(fileId, dst) {
     if (!db) return;
     db.prepare('UPDATE manifest SET suggestedDst = ? WHERE id = ?').run(dst, fileId);
+}
+
+function updateIsDuplicate(fileId, val) {
+    if (!db) return;
+    db.prepare('UPDATE manifest SET isDuplicate = ? WHERE id = ?').run(val, fileId);
 }
 
 /**
@@ -159,6 +165,7 @@ module.exports = {
     getAllFiles,
     getStats,
     updateSuggestedDst,
+    updateIsDuplicate,
     getPlannedMoves,
     clearDb
 };

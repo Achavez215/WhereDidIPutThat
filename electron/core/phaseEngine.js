@@ -99,41 +99,46 @@ async function phase2_preview(context, onProgress) {
     }
 
     const duplicatePool = new Map()
-    const duplicates = []
+    let duplicatesCount = 0
+    let potentialSavings = 0
 
     // Process files in batches from DB to avoid memory spikes
-    const allFiles = dbManager.getAllFiles()
+    const BATCH_SIZE_DB = 1000
+    let offset = 0
 
-    const updates = []
-    for (const file of allFiles) {
-        const key = `${file.name}_${file.size}`
-        if (duplicatePool.has(key)) {
-            duplicates.push(file.srcPath)
-        } else {
-            duplicatePool.set(key, file.srcPath)
+    while (true) {
+        const batch = dbManager.getFiles('all', BATCH_SIZE_DB, offset)
+        if (!batch || batch.length === 0) break
+
+        for (const file of batch) {
+            const key = `${file.name}_${file.size}`
+            const isDuplicate = duplicatePool.has(key)
+
+            if (isDuplicate) {
+                duplicatesCount++
+                potentialSavings += (file.size || 0)
+            } else {
+                duplicatePool.set(key, file.srcPath)
+            }
+
+            const dstFolder = mappings[file.category] || mappings.other
+            const suggestedDst = path.join(dstFolder, file.name)
+
+            // Save to DB for Phase 4
+            dbManager.updateSuggestedDst(file.id, suggestedDst)
+            if (isDuplicate) {
+                dbManager.updateIsDuplicate(file.id, 1)
+            }
         }
 
-        const dstFolder = mappings[file.category] || mappings.other
-        const suggestedDst = path.join(dstFolder, file.name)
-
-        recommendations.push({
-            fileId: file.id,
-            fileName: file.name,
-            srcPath: file.srcPath,
-            category: file.category,
-            suggestedDst: suggestedDst,
-            isDuplicate: duplicatePool.has(key) && duplicatePool.get(key) !== file.srcPath
-        })
-
-        // Save to DB for Phase 4
-        dbManager.updateSuggestedDst(file.id, suggestedDst)
+        offset += batch.length
+        onProgress({ phase: 2, status: 'preview', message: `Classified ${offset} files…` })
     }
 
     const actionPlan = {
-        recommendations,
         stats,
-        duplicatesCount: duplicates.length,
-        potentialSavings: duplicates.reduce((acc, p) => acc + (manifest.find(f => f.srcPath === p)?.size || 0), 0)
+        duplicatesCount,
+        potentialSavings
     }
 
     checkpointLogger.writeCheckpoint({ phase: 2, complete: true, actionPlan })
@@ -151,10 +156,12 @@ async function phase3_confirm(context, onProgress) {
 
 // ── Phase 4: Execution — Planned Moves ────────────────────────────
 async function phase4_execute(context, onProgress) {
-    const { plannedMoves } = context
-    if (!plannedMoves || plannedMoves.length === 0) return { ok: false, error: 'No planned moves provided.' }
+    // If not provided (large scale), pull from DB
+    const plannedMoves = context.plannedMoves || dbManager.getPlannedMoves()
+    if (!plannedMoves || plannedMoves.length === 0) return { ok: false, error: 'No planned moves found.' }
 
-    const totalBytes = plannedMoves.reduce((sum, move) => sum + (move.size || 0), 0)
+    const stats = dbManager.getStats()
+    const totalBytes = stats.totalSize || 0
     let bytesProcessed = 0
 
     if (plannedMoves.length > 0) {

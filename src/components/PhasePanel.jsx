@@ -59,7 +59,23 @@ export default function PhasePanel() {
     const [perfStats, setPerfStats] = useState(null)
     const [showBackupPrompt, setShowBackupPrompt] = useState(false)
     const [backupSkipped, setBackupSkipped] = useState(false)
+    const [previewFiles, setPreviewFiles] = useState([])
+    const [previewPage, setPreviewPage] = useState(1)
+    const [loadingPreview, setLoadingPreview] = useState(false)
     const perfPoll = useRef(null)
+
+    const loadPreviewFiles = async (page = 1, category = 'all') => {
+        setLoadingPreview(true)
+        try {
+            const files = await window.api.getFiles(category, page, 50)
+            setPreviewFiles(files)
+            setPreviewPage(page)
+        } catch (err) {
+            console.error('Failed to load preview files:', err)
+        } finally {
+            setLoadingPreview(false)
+        }
+    }
 
     // Subscribe to IPC progress events
     useEffect(() => {
@@ -68,6 +84,10 @@ export default function PhasePanel() {
             setPhaseProgress(phase, data)
             if (data.status === 'done' || data.status === 'cancelled') {
                 setPhaseStatus(phase, data.status === 'cancelled' ? 'cancelled' : 'done')
+                // If Phase 2 is done, load first page of preview
+                if (phase === 2 && data.status !== 'cancelled') {
+                    loadPreviewFiles(1)
+                }
             }
             if (data.report) setReport(data.report)
             if (data.manifest) setManifest(data.manifest, data.stats, data.tree)
@@ -294,16 +314,51 @@ export default function PhasePanel() {
                                 <div className="mt-4">
                                     <div className="flex gap-3 mb-4 flex-between">
                                         <div className="flex gap-2">
-                                            <span className="info-tag">📋 {actionPlan.recommendations.length} recommendations</span>
+                                            <span className="info-tag">📋 Overview of recommendations</span>
                                             {actionPlan.duplicatesCount > 0 && (
-                                                <span className="info-tag text-amber">⚠️ {actionPlan.duplicatesCount} duplicates</span>
+                                                <span className="info-tag text-amber">
+                                                    ⚠️ {actionPlan.duplicatesCount} duplicates ({formatBytes(actionPlan.potentialSavings)} potential savings)
+                                                </span>
                                             )}
                                         </div>
                                     </div>
                                     <div style={{ maxHeight: '400px', overflowY: 'auto', paddingRight: '12px' }}>
-                                        {actionPlan.recommendations.map((r) => (
-                                            <ActionPlanCard key={r.fileId} recommendation={r} />
-                                        ))}
+                                        {loadingPreview ? (
+                                            <div className="p-8 text-center text-muted">Loading preview…</div>
+                                        ) : previewFiles.length > 0 ? (
+                                            previewFiles.map((f) => (
+                                                <ActionPlanCard
+                                                    key={f.id}
+                                                    recommendation={{
+                                                        fileId: f.id,
+                                                        fileName: f.name,
+                                                        srcPath: f.srcPath,
+                                                        category: f.category,
+                                                        suggestedDst: f.suggestedDst,
+                                                        isDuplicate: f.isDuplicate === 1
+                                                    }}
+                                                />
+                                            ))
+                                        ) : (
+                                            <div className="p-8 text-center text-muted">No files found.</div>
+                                        )}
+                                    </div>
+                                    <div className="flex flex-center gap-4 mt-4">
+                                        <button
+                                            className="btn btn-ghost btn-xs"
+                                            disabled={previewPage <= 1}
+                                            onClick={() => loadPreviewFiles(previewPage - 1)}
+                                        >
+                                            Previous 50
+                                        </button>
+                                        <span className="text-xs text-muted">Page {previewPage}</span>
+                                        <button
+                                            className="btn btn-ghost btn-xs"
+                                            disabled={previewFiles.length < 50}
+                                            onClick={() => loadPreviewFiles(previewPage + 1)}
+                                        >
+                                            Next 50
+                                        </button>
                                     </div>
                                 </div>
                             )}
