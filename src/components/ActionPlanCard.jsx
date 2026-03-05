@@ -17,7 +17,7 @@ export default function ActionPlanCard({ recommendation }) {
     }
 
     return (
-        <div className={`action-card ${recommendation.isDuplicate ? 'duplicate-risk' : ''}`}>
+        <div className={`action-card ${recommendation.isDuplicate ? 'duplicate-risk' : ''} ${recommendation.collisionHandled ? 'collision-resolved' : ''}`}>
             <div className="action-main">
                 <div className="action-file">
                     <span className="file-name">{recommendation.fileName}</span>
@@ -39,7 +39,14 @@ export default function ActionPlanCard({ recommendation }) {
                         </div>
                     ) : (
                         <div className="flex flex-between w-full">
-                            <span className="dst-path">{recommendation.suggestedDst}</span>
+                            {recommendation.collisionHandled ? (
+                                <div className="flex flex-col">
+                                    <span className="dst-path text-muted line-through" style={{ fontSize: '0.8em' }}>{recommendation.suggestedDst}</span>
+                                    <span className="dst-path text-amber-500 font-bold">{recommendation.actualDst}</span>
+                                </div>
+                            ) : (
+                                <span className="dst-path">{recommendation.suggestedDst}</span>
+                            )}
                             <button className="btn btn-ghost btn-xs" onClick={() => setIsEditing(true)}>Edit</button>
                         </div>
                     )}

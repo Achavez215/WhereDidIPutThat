@@ -71,13 +71,22 @@ async function runTests() {
         { srcPath: path.join(src2, 'conflict.jpg'), dstPath: path.join(dstDir, 'conflict.jpg'), size: 9 }
     ]
 
+    let collisionReported = false
     const moveResult = await phaseEngine.startPhase(4, { plannedMoves }, (p) => {
-        if (p.status === 'running') process.stdout.write('>')
+        if (p.status === 'running') {
+            process.stdout.write('>')
+            if (p.collision) {
+                collisionReported = true
+                console.log(`\n  [Progress Event] Collision detected for ${p.lastMove.src}`)
+                console.log(`  [Progress Event] Redirection: ${p.collision.originalDst} -> ${p.collision.actualDst}`)
+            }
+        }
     })
 
     const dstFiles = fs.readdirSync(dstDir)
     console.log('\n✓ Destination files after collision:', dstFiles)
     console.log('✓ collision handling (conflict_1.jpg exists):', dstFiles.includes('conflict_1.jpg'))
+    console.log('✓ collision data reported via progress event:', collisionReported)
 
     // 3. Paginated DB Retrieval
     console.log('\n[3] Testing Paginated Retrieval...')

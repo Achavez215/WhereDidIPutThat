@@ -199,16 +199,36 @@ async function phase4_execute(context, onProgress) {
 
                 // Use the new safeMove helper
                 const actualDst = await safeMove(move.srcPath, move.dstPath)
+                const wasRenamed = pathManager.toLongPath(move.dstPath) !== pathManager.toLongPath(actualDst)
 
                 movedFiles[move.srcPath] = actualDst
                 auditLogger.log({
                     phase: 4, action: 'MOVED',
                     srcPath: move.srcPath, dstPath: actualDst,
                     size: move.size || 0, status: 'OK',
+                    renamed: wasRenamed
                 })
                 processedFiles++
                 bytesProcessed += (move.size || 0)
                 performanceController.increment()
+
+                const collisionData = wasRenamed ? {
+                    originalDst: move.dstPath,
+                    actualDst: actualDst
+                } : null
+
+                // Report individual file progress for real-time UI updates
+                onProgress({
+                    phase: 4, status: 'running',
+                    processed: processedFiles,
+                    failed: failedFiles,
+                    total: plannedMoves.length,
+                    bytesProcessed,
+                    totalBytes,
+                    lastMove: { src: move.srcPath, dst: actualDst, wasRenamed },
+                    collision: collisionData,
+                    ...performanceController.getStats(),
+                })
             } catch (err) {
                 auditLogger.log({
                     phase: 4, action: 'ERROR',

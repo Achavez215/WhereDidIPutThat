@@ -96,7 +96,29 @@ export const useAppStore = create((set, get) => ({
 
     setCurrentPhase: (n) => set({ currentPhase: n }),
     setPhaseStatus: (n, status) => set(s => ({ phaseStatus: { ...s.phaseStatus, [n]: status } })),
-    setPhaseProgress: (n, data) => set(s => ({ phaseProgress: { ...s.phaseProgress, [n]: { ...(s.phaseProgress[n] || {}), ...data } } })),
+    setPhaseProgress: (n, data) => set(s => {
+        let updatedActionPlan = s.actionPlan
+
+        // If Phase 4 reports a collision, update the action plan's final destination
+        if (n === 4 && data.collision && s.actionPlan) {
+            updatedActionPlan = {
+                ...s.actionPlan,
+                recommendations: s.actionPlan.recommendations.map(r =>
+                    (r.suggestedDst === data.collision.originalDst && r.srcPath === data.lastMove.src)
+                        ? { ...r, actualDst: data.collision.actualDst, collisionHandled: true }
+                        : r
+                )
+            }
+        }
+
+        return {
+            actionPlan: updatedActionPlan,
+            phaseProgress: {
+                ...s.phaseProgress,
+                [n]: { ...(s.phaseProgress[n] || {}), ...data }
+            }
+        }
+    }),
 
     // ── Backup ────────────────────────────────────────────────
     backupPath: null,

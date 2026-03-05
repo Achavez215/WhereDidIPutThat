@@ -261,6 +261,12 @@ export default function PhasePanel() {
                                         </div>
                                     </div>
                                     <PerfRow stats={perfStats} />
+                                    {num === 4 && p.collision && (
+                                        <div className="collision-toast mt-2 p-2 bg-amber-900/20 text-amber-400 rounded text-sm border border-amber-500/30" role="alert" aria-live="assertive">
+                                            <span aria-hidden="true">🔄</span>
+                                            Collision avoided: file renamed to <strong>{p.lastMove.dst.split('\\').pop()}</strong>
+                                        </div>
+                                    )}
                                     {num === 4 && perfStats?.bytesPerSecond > 0 && (
                                         <div style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'right', marginTop: '4px' }}>
                                             Throughput: {formatBytes(perfStats.bytesPerSecond)}/s
@@ -304,7 +310,12 @@ export default function PhasePanel() {
 
                             {isDone && num === 5 && p.passed != null && (
                                 <div className="flex gap-3 mt-4">
-                                    <span className="info-tag text-green">✅ {p.passed} checks passed</span>
+                                    <span className="info-tag text-green">✅ {p.processed} files moved</span>
+                                    {actionPlan?.recommendations.filter(r => r.collisionHandled).length > 0 && (
+                                        <span className="info-tag text-amber">
+                                            ⚠️ {actionPlan.recommendations.filter(r => r.collisionHandled).length} files auto-renamed
+                                        </span>
+                                    )}
                                     {p.missing > 0 && <span className="info-tag text-amber">⚠️ {p.missing} not found</span>}
                                 </div>
                             )}
