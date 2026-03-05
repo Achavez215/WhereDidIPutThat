@@ -337,6 +337,27 @@ export default function PhasePanel() {
                                         <span className="info-tag text-amber">
                                             ⚠️ {actionPlan.recommendations.filter(r => r.collisionHandled).length} files auto-renamed
                                         </span>
+                                    <div className="flex flex-center gap-4 mt-6 mb-4">
+                                        {hasMore && (
+                                            <button
+                                                className="btn btn-ghost btn-sm border border-muted hover:border-teal-500"
+                                                disabled={loadingPreview}
+                                                onClick={loadMore}
+                                            >
+                                                {loadingPreview ? 'Loading…' : '👇 Load More Recommendations'}
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {isDone && num === 5 && p.processed != null && (
+                                <div className="flex gap-3 mt-4">
+                                    <span className="info-tag text-green">✅ {p.processed} files moved</span>
+                                    {p.renamed > 0 && (
+                                        <span className="info-tag text-amber">
+                                            ⚠️ {p.renamed} files auto-renamed
+                                        </span>
                                     )}
                                     {p.missing > 0 && <span className="info-tag text-amber">⚠️ {p.missing} not found</span>}
                                 </div>
