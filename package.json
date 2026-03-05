@@ -10,6 +10,8 @@
         "dev:electron": "set ELECTRON_IS_DEV=1 && .\\node_modules\\electron\\dist\\electron.exe .",
         "start": ".\\node_modules\\electron\\dist\\electron.exe .",
         "build": "vite build",
+        "test": "vitest run",
+        "test:watch": "vitest",
         "package": "vite build && electron-builder"
     },
     "dependencies": {
@@ -25,6 +27,7 @@
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
         "vite": "^6.4.1",
+        "vitest": "^4.0.18",
         "wait-on": "^7.2.0"
     },
     "build": {

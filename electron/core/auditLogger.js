@@ -122,6 +122,7 @@ function exportReport(filePath, format) {
 </html>`
             fs.writeFileSync(filePath, html, 'utf8')
         }
+        return { ok: true, filePath }
     } catch (err) {
         return { ok: false, error: err.message }
     }
