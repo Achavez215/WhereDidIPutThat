@@ -30,4 +30,4 @@ try {
     console.log('_linkedBinding error:', e.message)
 }
 
-process.exit(0)
+if (typeof Deno !== "undefined") { Deno.exit(0); } else if (typeof process !== "undefined") { process.exit(0); }

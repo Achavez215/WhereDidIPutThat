@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useAppStore } from '../store/appStore'
 
 export default function ReportView() {
-    const { report, setStep, currentPhase, phaseProgress } = useAppStore()
+    const { report, setStep } = useAppStore()
     const [filter, setFilter] = useState('ALL')
     const [search, setSearch] = useState('')
-    const [exporting, setExporting] = useState(false)
 
     if (!report || !report.logs) {
         return (
@@ -28,11 +27,10 @@ export default function ReportView() {
     })
 
     const handleExport = async (format) => {
-        setExporting(true)
         try {
             await window.api.exportReport(format)
         } finally {
-            setExporting(false)
+            // cleanup if needed
         }
     }
 
