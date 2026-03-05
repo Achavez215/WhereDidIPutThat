@@ -93,13 +93,35 @@ app.whenReady().then(() => {
     })
 
     // ── Content Security Policy ───────────────────────────────────────
+    // Dev mode: relaxed to allow Vite HMR, React inline scripts, Google Fonts
+    // Production: strict — no external connections or inline scripts
+    const CSP_DEV = [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval'",  // Vite + React preamble
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' data: https://fonts.gstatic.com",
+        "img-src 'self' data: blob:",
+        "connect-src 'self' ws://localhost:5173 http://localhost:5173",  // Vite HMR
+        "object-src 'none'",
+        "base-uri 'none'",
+    ].join('; ')
+
+    const CSP_PROD = [
+        "default-src 'self'",
+        "script-src 'self'",
+        "style-src 'self' 'unsafe-inline'",
+        "font-src 'self' data:",
+        "img-src 'self' data: blob:",
+        "connect-src 'none'",
+        "object-src 'none'",
+        "base-uri 'none'",
+    ].join('; ')
+
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
         callback({
             responseHeaders: {
                 ...details.responseHeaders,
-                'Content-Security-Policy': [
-                    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'"
-                ],
+                'Content-Security-Policy': [isDev ? CSP_DEV : CSP_PROD],
             },
         })
     })
