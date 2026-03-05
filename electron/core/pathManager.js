@@ -4,7 +4,7 @@
  * Ensures the app follows OS-standard storage rules.
  */
 
-const { app } = require('../electron-api')
+const { app } = require('electron')
 const path = require('path')
 const fs = require('fs')
 

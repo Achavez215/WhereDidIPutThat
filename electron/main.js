@@ -10,13 +10,7 @@
 'use strict'
 
 const { app, BrowserWindow, ipcMain, dialog, session } = require('electron')
-const { autoUpdater } = require('electron-updater')
 const path = require('path')
-
-// Config auto-updater
-autoUpdater.autoDownload = false
-autoUpdater.logger = require('electron-log')
-autoUpdater.logger.transports.file.level = 'info'
 
 // Dev mode detection: env var set by npm scripts, or running from source (not asar)
 const isDev = process.env.ELECTRON_IS_DEV === '1' || !__dirname.includes('app.asar')
@@ -84,6 +78,20 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+    // ── Defer electron-updater init until app is ready ──────────────
+    const { autoUpdater } = require('electron-updater')
+    const electronLog = require('electron-log')
+    autoUpdater.autoDownload = false
+    autoUpdater.logger = electronLog
+    autoUpdater.logger.transports.file.level = 'info'
+
+    autoUpdater.on('update-available', () => {
+        if (mainWindow) mainWindow.webContents.send('update:available')
+    })
+    autoUpdater.on('update-downloaded', () => {
+        if (mainWindow) mainWindow.webContents.send('update:downloaded')
+    })
+
     // ── Content Security Policy ───────────────────────────────────────
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
         callback({
@@ -221,14 +229,8 @@ ipcMain.handle('updates:check', () => {
     if (isDev) {
         return { status: 'dev', message: 'Update checks disabled in development mode.' }
     }
-    return autoUpdater.checkForUpdatesAndNotify()
-})
-
-autoUpdater.on('update-available', () => {
-    if (mainWindow) mainWindow.webContents.send('update:available')
-})
-
-autoUpdater.on('update-downloaded', () => {
-    if (mainWindow) mainWindow.webContents.send('update:downloaded')
+    // autoUpdater is initialized inside app.whenReady() — require it lazily here
+    const { autoUpdater: au } = require('electron-updater')
+    return au.checkForUpdatesAndNotify()
 })
 

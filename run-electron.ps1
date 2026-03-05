@@ -1,4 +1,6 @@
 $env:ELECTRON_IS_DEV = '1'
+# Clear env var that disables Electron APIs
+Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
 $electronExe = '.\node_modules\electron\dist\electron.exe'
 $stdoutFile = '.\electron_stdout.txt'
 $stderrFile = '.\electron_stderr.txt'
