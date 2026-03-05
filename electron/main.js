@@ -9,7 +9,7 @@
 
 'use strict'
 
-const { app, BrowserWindow, ipcMain, dialog } = require('./electron-api')
+const { app, BrowserWindow, ipcMain, dialog, session } = require('electron')
 const { autoUpdater } = require('electron-updater')
 const path = require('path')
 
@@ -50,7 +50,8 @@ function createWindow() {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
             nodeIntegration: false,
-            sandbox: false,
+            sandbox: true,
+            webSecurity: true,
         },
     })
 
@@ -64,9 +65,37 @@ function createWindow() {
     }
 
     mainWindow.on('closed', () => { mainWindow = null })
+
+    // ── Navigation Guard: block all external navigation ──────────────
+    mainWindow.webContents.on('will-navigate', (event, url) => {
+        const parsedUrl = new URL(url)
+        const allowedOrigins = ['http://localhost:5173', 'file://']
+        const isAllowed = allowedOrigins.some(o => url.startsWith(o))
+        if (!isAllowed) {
+            event.preventDefault()
+            console.warn('[WhereDidIPutThat] Blocked navigation to:', parsedUrl.origin)
+        }
+    })
+
+    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+        console.warn('[WhereDidIPutThat] Blocked new window request to:', url)
+        return { action: 'deny' }
+    })
 }
 
 app.whenReady().then(() => {
+    // ── Content Security Policy ───────────────────────────────────────
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+        callback({
+            responseHeaders: {
+                ...details.responseHeaders,
+                'Content-Security-Policy': [
+                    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'"
+                ],
+            },
+        })
+    })
+
     createWindow()
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -141,14 +170,21 @@ ipcMain.handle('backup:delete', (_, backupPath) => backupManager.deleteBackup(ba
 ipcMain.handle('log:getAll', () => auditLogger.getAll())
 
 ipcMain.handle('log:export', async (_, format) => {
+    const formatMap = {
+        json: [{ name: 'JSON', extensions: ['json'] }],
+        csv: [{ name: 'CSV', extensions: ['csv'] }],
+        html: [{ name: 'HTML Report', extensions: ['html'] }],
+    }
     const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {
         title: 'Export Report — WhereDidIPutThat',
         defaultPath: `wheredidiputhat_report_${Date.now()}.${format}`,
-        filters: [{ name: format.toUpperCase(), extensions: [format] }],
+        filters: formatMap[format] || [{ name: format.toUpperCase(), extensions: [format] }],
     })
     if (canceled || !filePath) return null
     return auditLogger.exportReport(filePath, format)
 })
+
+ipcMain.handle('log:clear', () => auditLogger.clearLog())
 
 // ──────────────────────────────────────────────
 // IPC Handlers — Performance
@@ -163,6 +199,19 @@ ipcMain.handle('perf:getStats', () => performanceController.getStats())
 ipcMain.handle('settings:getAll', () => settingsManager.getAll())
 ipcMain.handle('settings:update', (_, newSettings) => settingsManager.update(newSettings))
 ipcMain.handle('settings:get', (_, key) => settingsManager.get(key))
+
+// ──────────────────────────────────────────────
+// IPC Handlers — Duplicate Detection
+// ──────────────────────────────────────────────
+
+const duplicateDetector = require('./core/duplicateDetector')
+ipcMain.handle('scan:duplicates', async (event, manifest) => {
+    return duplicateDetector.findDuplicates(manifest, (checked, total) => {
+        if (!event.sender.isDestroyed()) {
+            event.sender.send('scan:duplicateProgress', { checked, total })
+        }
+    })
+})
 
 // ──────────────────────────────────────────────
 // IPC Handlers — Updates

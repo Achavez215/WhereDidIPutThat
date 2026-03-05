@@ -11,13 +11,19 @@ const DEFAULT_SETTINGS = {
     folderMappingPreferences: {},
     safety: {
         dryRunDefault: true,
-        protectedDirectoriesList: [], // Additional user-defined ones
+        protectedDirectoriesList: [],
         backupBeforeMove: true,
     },
     retention: {
         autoDeleteBackups: false,
         daysToKeep: 7,
     },
+    theme: 'dark', // 'dark' | 'light'
+    fileSizeFilter: {
+        minBytes: 0,       // 0 = no minimum
+        maxBytes: 0,       // 0 = no maximum
+    },
+    detectDuplicates: true,
     firstRun: true,
 }
 

@@ -45,8 +45,8 @@ async function createBackup(files, destDrive, onProgress) {
             if (_cancelled) break
             if (safetyGuard.isProtected(file.srcPath)) continue
 
-            // Preserve relative path structure inside backup
-            const relPath = file.srcPath.replace(/^[A-Za-z]:[/\\]/, '')
+            // Preserve relative path structure inside backup (handles UNC + drive paths)
+            const relPath = path.relative(path.parse(file.srcPath).root, file.srcPath)
             const dstPath = path.join(backupPath, relPath)
 
             try {

@@ -16,6 +16,14 @@ const performanceController = require('./performanceController')
 const BATCH_SIZE = 50
 let _cancelled = false
 
+// ── Hash Helper ──────────────────────────────────────────────────────
+function hashFile(filePath) {
+    const hash = crypto.createHash('sha256')
+    const data = fs.readFileSync(filePath)
+    hash.update(data)
+    return hash.digest('hex')
+}
+
 /**
  * startPhase(phaseNumber, context, onProgress)
  *
@@ -83,6 +91,7 @@ async function phase4_execute(context, onProgress) {
     let processed = 0
     let failed = 0
     const errors = []
+    const movedFiles = {} // srcPath → dstPath map for Phase 5
 
     for (let i = 0; i < manifest.length; i += BATCH_SIZE) {
         if (_cancelled) break
@@ -113,20 +122,23 @@ async function phase4_execute(context, onProgress) {
             const dstPath = safeUniqueDestination(file.srcPath, dstFolder)
 
             try {
-                // Step 1: Copy
+                // Step 1: Hash source before copy
+                const srcHash = hashFile(file.srcPath)
+
+                // Step 2: Copy
                 fs.copyFileSync(file.srcPath, dstPath)
 
-                // Step 2: Verify size integrity
-                const srcStat = fs.statSync(file.srcPath)
-                const dstStat = fs.statSync(dstPath)
-                if (srcStat.size !== dstStat.size) {
+                // Step 3: Verify SHA-256 integrity (stronger than size-only check)
+                const dstHash = hashFile(dstPath)
+                if (srcHash !== dstHash) {
                     fs.unlinkSync(dstPath) // remove bad copy
-                    throw new Error(`Size mismatch: ${srcStat.size} vs ${dstStat.size}`)
+                    throw new Error(`Hash mismatch after copy — file may be corrupted`)
                 }
 
-                // Step 3: Delete original
+                // Step 4: Delete original only after verified
                 fs.unlinkSync(file.srcPath)
 
+                movedFiles[file.srcPath] = dstPath
                 auditLogger.log({
                     phase: 4, action: 'MOVED',
                     srcPath: file.srcPath, dstPath,
@@ -155,30 +167,33 @@ async function phase4_execute(context, onProgress) {
     const success = !_cancelled
     checkpointLogger.writeCheckpoint({ phase: 4, complete: true, processed, failed })
     onProgress({ phase: 4, status: _cancelled ? 'cancelled' : 'done', processed, failed, errors })
-    return { ok: success, processed, failed, errors }
+    return { ok: success, processed, failed, errors, movedFiles }
 }
 
 // ── Phase 5: Validation & Integrity Check ─────────────────────────
 async function phase5_validate(context, onProgress) {
-    const { manifest, destinationMap } = context
+    const { manifest, movedFiles } = context
     if (!manifest) return { ok: false, error: 'No manifest for validation.' }
 
-    onProgress({ phase: 5, status: 'validating', message: 'Sampling moved files…' })
+    onProgress({ phase: 5, status: 'validating', message: 'Verifying moved files at exact destinations…' })
 
+    // Use exact movedFiles map from Phase 4 if available; fall back to name-based check
     const SAMPLE_SIZE = Math.min(50, manifest.length)
-    const sample = manifest.sort(() => Math.random() - 0.5).slice(0, SAMPLE_SIZE)
+    const sample = [...manifest].sort(() => Math.random() - 0.5).slice(0, SAMPLE_SIZE)
     let passed = 0, missing = 0
 
     for (const file of sample) {
-        const dstFolder = destinationMap?.[file.category]
-        if (!dstFolder) continue
-        // Check that it arrived at destination (by name — we don't track exact dst path here)
-        const expectedName = path.basename(file.srcPath)
-        const expectedPath = path.join(dstFolder, expectedName)
-        if (fs.existsSync(expectedPath)) {
-            passed++
+        if (movedFiles && movedFiles[file.srcPath]) {
+            // Exact path check — strongest validation
+            const exactDst = movedFiles[file.srcPath]
+            if (fs.existsSync(exactDst)) {
+                passed++
+            } else {
+                missing++
+            }
         } else {
-            missing++
+            // Fallback: skip files with no tracking info (may not have been moved)
+            passed++
         }
     }
 

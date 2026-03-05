@@ -104,6 +104,58 @@ body,
   overflow: hidden;
 }
 
+/* ── Update Banner ──────────────────────────────────────────── */
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 10px var(--sp-6);
+  background: linear-gradient(90deg, rgba(56,189,248,0.08), rgba(99,102,241,0.06));
+  border-bottom: 1px solid rgba(56,189,248,0.2);
+  font-size: 13px;
+  color: var(--text-primary);
+  flex-shrink: 0;
+  animation: slideDown 0.25s ease;
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.update-banner__icon { font-size: 16px; }
+
+.update-banner__text { flex: 1; }
+
+.update-banner__btn {
+  padding: 5px 12px;
+  background: linear-gradient(135deg, #2563eb, #0ea5e9);
+  color: #fff;
+  border: none;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--t-fast);
+}
+
+.update-banner__btn:hover { opacity: 0.88; }
+
+.update-banner__close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  transition: color var(--t-fast);
+}
+
+.update-banner__close:hover { color: var(--text-primary); }
+
+
+
 .app-header {
   flex-shrink: 0;
   display: flex;

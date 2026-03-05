@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('api', {
     // Logging & Report
     getLogs: () => ipcRenderer.invoke('log:getAll'),
     exportReport: (format) => ipcRenderer.invoke('log:export', format),
+    clearLog: () => ipcRenderer.invoke('log:clear'),
 
     // Performance stats
     getPerfStats: () => ipcRenderer.invoke('perf:getStats'),

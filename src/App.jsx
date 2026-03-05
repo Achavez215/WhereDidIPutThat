@@ -8,6 +8,7 @@ import ReportScreen from './components/ReportScreen'
 import PermissionGate from './components/PermissionGate'
 import SettingsScreen from './components/SettingsScreen'
 import HelpScreen from './components/HelpScreen'
+import UpdateBanner from './components/UpdateBanner'
 
 const STEPS = [
     { key: 'drive', label: 'Drive', icon: '💽' },
@@ -43,6 +44,7 @@ export default function App() {
 
     return (
         <div className="app">
+            <UpdateBanner />
             {/* ── Title bar ── */}
             <header className="app-header">
                 <img src="/logo.png" className="logo-img" alt="logo" style={{ height: '32px', width: '32px', borderRadius: '6px' }} />
