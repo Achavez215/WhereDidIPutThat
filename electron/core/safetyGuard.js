@@ -48,22 +48,9 @@ const ALL_PROTECTED = [...new Set([
     ...winEnvProtected
 ])].map(p => normalize(p))
 
-// Protected folder NAMES (matched at any depth)
-const PROTECTED_NAMES = new Set([
-    'windows',
-    'system32',
-    'syswow64',
-    'program files',
-    'program files (x86)',
-    'programdata',
-    'appdata',
-    'application support',
-    'library',
-    '$recycle.bin',
-    'system volume information',
-    'recovery',
-    'boot',
-])
+// Note: We rely on absolute path checks (ALL_PROTECTED) for system safety.
+// PROTECTED_NAMES is removed to prevent accidental blocking of user-owned
+// folders with common names (like "Library" or "Windows") in safe locations.
 
 // Extensions that must never be moved
 const PROTECTED_EXTENSIONS = new Set([
@@ -83,7 +70,12 @@ function normalize(p) {
             norm = '\\\\' + norm.substring(4)
         }
     }
-    return path.normalize(norm).toLowerCase().replace(/\\/g, '/')
+    // Standardize to forward slashes and remove trailing slash UNLESS it's a root (e.g. C:/)
+    let processed = path.normalize(norm).replace(/\\/g, '/')
+    if (processed.length > 3 && processed.endsWith('/')) {
+        processed = processed.slice(0, -1)
+    }
+    return processed.toLowerCase()
 }
 
 /**
@@ -97,13 +89,8 @@ function isProtected(targetPath) {
 
     // Check against known protected roots
     for (const root of ALL_PROTECTED) {
+        // Match the root exactly or any sub-item (ensure trailing slash for prefix match)
         if (norm === root || norm.startsWith(root + '/')) return true
-    }
-
-    // Check folder name components
-    const parts = norm.split('/')
-    for (const part of parts) {
-        if (PROTECTED_NAMES.has(part.toLowerCase())) return true
     }
 
     return false

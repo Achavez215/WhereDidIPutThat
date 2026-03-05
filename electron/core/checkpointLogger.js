@@ -20,8 +20,13 @@ function writeCheckpoint(data) {
     const dir = path.dirname(CHECKPOINT_FILE)
     const longDir = pathManager.toLongPath(dir)
     const longFile = pathManager.toLongPath(CHECKPOINT_FILE)
+    const longTempFile = pathManager.toLongPath(CHECKPOINT_FILE + '.tmp')
+
     if (!fs.existsSync(longDir)) fs.mkdirSync(longDir, { recursive: true })
-    fs.writeFileSync(longFile, JSON.stringify(updated, null, 2), 'utf8')
+
+    // Atomic write: Write to temp file first, then rename
+    fs.writeFileSync(longTempFile, JSON.stringify(updated, null, 2), 'utf8')
+    fs.renameSync(longTempFile, longFile)
 }
 
 function readCheckpoint() {
