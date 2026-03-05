@@ -1315,3 +1315,211 @@ body,
   white-space: nowrap;
   border-width: 0;
 }
+
+/* ── Tree View / Scan Overview ──────────────────────────── */
+.tree-container {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tree-node {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-size: 13px;
+  gap: 8px;
+}
+
+.tree-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tree-toggle {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.tree-icon {
+  font-size: 14px;
+}
+
+.tree-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-stats {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.tree-stat-tag {
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 6px;
+  border-radius: 10px;
+  color: var(--text-muted);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.tree-total-tag {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent-teal);
+  margin-left: 4px;
+}
+
+.tree-children {
+  border-left: 1px solid rgba(255, 255, 255, 0.05);
+  margin-left: 8px;
+}
+
+.tree-node.excluded {
+  opacity: 0.5;
+}
+
+.tree-checkbox {
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  cursor: pointer;
+  background: var(--bg-input);
+  color: var(--accent-teal);
+}
+
+.tree-checkbox.checked {
+  background: var(--accent-teal);
+  border-color: var(--accent-teal);
+  color: #000;
+}
+
+.tree-size-tag {
+  font-size: 10px;
+  color: var(--accent-blue);
+  background: rgba(59, 130, 246, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+}
+
+.scan-overview {
+  margin-top: 16px;
+}
+
+/* ── Action Cards ─────────────────────────────────────────── */
+.action-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--sp-4);
+  margin-bottom: var(--sp-3);
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.action-card:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.action-card.duplicate-risk {
+  border-left: 4px solid var(--accent-amber);
+}
+
+.action-main {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+}
+
+.action-file {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.action-file .file-name {
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.action-file .file-path {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.action-arrow {
+  color: var(--accent-teal);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.action-dst {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.action-dst .dst-path {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--accent-teal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.action-warning {
+  margin-top: 12px;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 11px;
+  color: #fde68a;
+}
+
+.action-footer {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 8px;
+}
+
+.btn-xs {
+  padding: 2px 8px;
+  font-size: 10px;
+}

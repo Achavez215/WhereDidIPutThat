@@ -27,13 +27,43 @@ export const useAppStore = create((set, get) => ({
     selectAllFolders: () => set(s => ({ selectedFolders: s.topLevelFolders })),
     clearFolders: () => set({ selectedFolders: [] }),
 
+    // ── Exclusions (Phase 3) ──────────────────────────────────
+    excludedPaths: new Set(),
+    togglePathExclusion: (path) => set(s => {
+        const next = new Set(s.excludedPaths)
+        if (next.has(path)) next.delete(path)
+        else next.add(path)
+        return { excludedPaths: next }
+    }),
+
     // ── File Manifest & Stats ─────────────────────────────────
     manifest: null,
     stats: null,
-    setManifest: (manifest, stats) => set({ manifest, stats }),
+    scanTree: null,
+    actionPlan: null,
+    setManifest: (manifest, stats, scanTree) => set({ manifest, stats, scanTree }),
+    setActionPlan: (actionPlan) => set({ actionPlan }),
+    updateRecommendation: (fileId, newDst) => set(s => ({
+        actionPlan: {
+            ...s.actionPlan,
+            recommendations: s.actionPlan.recommendations.map(r =>
+                r.fileId === fileId ? { ...r, suggestedDst: newDst } : r
+            )
+        }
+    })),
+    rejectRecommendation: (fileId) => set(s => ({
+        actionPlan: {
+            ...s.actionPlan,
+            recommendations: s.actionPlan.recommendations.filter(r => r.fileId !== fileId)
+        }
+    })),
 
     // ── Destination Mapping ───────────────────────────────────
-    destinationMap: { images: '', videos: '', audio: '', documents: '', archives: '', other: '' },
+    destinationMap: {
+        images: '', videos: '', audio: '',
+        pdfs: '', word_docs: '', documents: '',
+        archives: '', applications: '', other: ''
+    },
     setDestination: (category, path) => set(s => ({ destinationMap: { ...s.destinationMap, [category]: path } })),
 
     // ── Phase State ───────────────────────────────────────────

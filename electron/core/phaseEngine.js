@@ -67,11 +67,61 @@ async function phase1_scan(context, onProgress) {
 
 // ── Phase 2: Classification & Mapping Preview ──────────────────────
 async function phase2_preview(context, onProgress) {
-    onProgress({ phase: 2, status: 'preview', message: 'Building category breakdown…' })
-    const stats = fileScanner.buildStats(context.manifest)
-    checkpointLogger.writeCheckpoint({ phase: 2, complete: true, stats })
-    onProgress({ phase: 2, status: 'done', stats })
-    return { ok: true, stats }
+    onProgress({ phase: 2, status: 'preview', message: 'Generating AI-driven action plan…' })
+
+    const { manifest, selectedDrive } = context
+    const stats = fileScanner.buildStats(manifest)
+
+    // Heuristic-based recommendations
+    const recommendations = []
+    const baseDir = selectedDrive?.mountPath || 'C:\\'
+
+    const defaultMappings = {
+        images: path.join(baseDir, 'Images'),
+        videos: path.join(baseDir, 'Videos'),
+        audio: path.join(baseDir, 'Music'),
+        pdfs: path.join(baseDir, 'Documents', 'PDFs'),
+        word_docs: path.join(baseDir, 'Documents', 'Word'),
+        documents: path.join(baseDir, 'Documents'),
+        archives: path.join(baseDir, 'Zipped Archives'),
+        applications: path.join(baseDir, 'Installers'),
+        other: path.join(baseDir, 'Others')
+    }
+
+    // Identify duplicates (simple name+size check for now, Phase 4 does hash)
+    const duplicatePool = new Map()
+    const duplicates = []
+
+    for (const file of manifest) {
+        const key = `${file.name}_${file.size}`
+        if (duplicatePool.has(key)) {
+            duplicates.push(file.srcPath)
+        } else {
+            duplicatePool.set(key, file.srcPath)
+        }
+
+        const dstFolder = defaultMappings[file.category] || defaultMappings.other
+        recommendations.push({
+            fileId: file.id,
+            fileName: file.name,
+            srcPath: file.srcPath,
+            category: file.category,
+            suggestedDst: dstFolder,
+            isDuplicate: duplicatePool.has(key) && duplicatePool.get(key) !== file.srcPath
+        })
+    }
+
+    const actionPlan = {
+        recommendations,
+        stats,
+        duplicatesCount: duplicates.length,
+        potentialSavings: duplicates.reduce((acc, p) => acc + (manifest.find(f => f.srcPath === p)?.size || 0), 0)
+    }
+
+    checkpointLogger.writeCheckpoint({ phase: 2, complete: true, actionPlan })
+    onProgress({ phase: 2, status: 'done', actionPlan })
+
+    return { ok: true, actionPlan }
 }
 
 // ── Phase 3: Backup Creation ───────────────────────────────────────
@@ -83,93 +133,74 @@ async function phase3_backup(context, onProgress) {
     return { ok: true, backupPath: context.backupPath }
 }
 
-// ── Phase 4: Execution — Copy → Verify → Delete ────────────────────
+// ── Phase 4: Execution — Planned Moves ────────────────────────────
 async function phase4_execute(context, onProgress) {
-    const { manifest, destinationMap } = context
-    if (!manifest || !destinationMap) return { ok: false, error: 'Missing manifest or destination map.' }
+    const { plannedMoves } = context
+    if (!plannedMoves || plannedMoves.length === 0) return { ok: false, error: 'No planned moves provided.' }
 
     // ── Disk space pre-check ─────────────────────────────────────
-    // Estimate total bytes needed and pick the first destination to check against
-    const totalBytes = manifest.reduce((sum, f) => sum + (f.size || 0), 0)
-    const destPaths = Object.values(destinationMap).filter(Boolean)
-    if (destPaths.length > 0) {
-        // Check the drive of the first mapped destination
-        const spaceCheck = diskUtils.checkDiskSpace(destPaths[0], totalBytes)
+    const totalBytes = plannedMoves.reduce((sum, move) => sum + (move.size || 0), 0)
+    if (plannedMoves.length > 0) {
+        const spaceCheck = diskUtils.checkDiskSpace(plannedMoves[0].dstPath, totalBytes)
         if (!spaceCheck.ok) {
             return { ok: false, error: spaceCheck.message }
         }
     }
 
-    performanceController.start(manifest.length)
+    performanceController.start(plannedMoves.length)
     let processed = 0
     let failed = 0
     const errors = []
-    const movedFiles = {} // srcPath → dstPath map for Phase 5
+    const movedFiles = {}
 
-    for (let i = 0; i < manifest.length; i += BATCH_SIZE) {
+    for (let i = 0; i < plannedMoves.length; i += BATCH_SIZE) {
         if (_cancelled) break
         await performanceController.waitIfPaused()
 
-        const batch = manifest.slice(i, i + BATCH_SIZE)
+        const batch = plannedMoves.slice(i, i + BATCH_SIZE)
 
-        for (const file of batch) {
+        for (const move of batch) {
             if (_cancelled) break
 
-            const dstFolder = destinationMap[file.category]
-            if (!dstFolder) {
-                auditLogger.log({ phase: 4, action: 'SKIP', srcPath: file.srcPath, reason: 'No destination mapped' })
-                continue
-            }
-
-            const validation = safetyGuard.validateTarget(file.srcPath, dstFolder)
+            const validation = safetyGuard.validateTarget(move.srcPath, path.dirname(move.dstPath))
             if (!validation.ok) {
-                auditLogger.log({ phase: 4, action: 'BLOCKED', srcPath: file.srcPath, reason: validation.reason })
+                auditLogger.log({ phase: 4, action: 'BLOCKED', srcPath: move.srcPath, reason: validation.reason })
                 failed++
-                errors.push({ file: file.srcPath, reason: validation.reason })
+                errors.push({ file: move.srcPath, reason: validation.reason })
                 continue
             }
 
-            // Ensure destination folder exists
-            try { fs.mkdirSync(dstFolder, { recursive: true }) } catch { }
-
-            const dstPath = safeUniqueDestination(file.srcPath, dstFolder)
+            try { fs.mkdirSync(path.dirname(move.dstPath), { recursive: true }) } catch { }
 
             try {
-                // Step 1: Hash source before copy
-                const srcHash = hashFile(file.srcPath)
-
-                // Step 2: Copy
-                fs.copyFileSync(file.srcPath, dstPath)
-
-                // Step 3: Verify SHA-256 integrity (stronger than size-only check)
-                const dstHash = hashFile(dstPath)
+                const srcHash = hashFile(move.srcPath)
+                fs.copyFileSync(move.srcPath, move.dstPath)
+                const dstHash = hashFile(move.dstPath)
                 if (srcHash !== dstHash) {
-                    fs.unlinkSync(dstPath) // remove bad copy
-                    throw new Error(`Hash mismatch after copy — file may be corrupted`)
+                    fs.unlinkSync(move.dstPath)
+                    throw new Error(`Hash mismatch after copy`)
                 }
+                fs.unlinkSync(move.srcPath)
 
-                // Step 4: Delete original only after verified
-                fs.unlinkSync(file.srcPath)
-
-                movedFiles[file.srcPath] = dstPath
+                movedFiles[move.srcPath] = move.dstPath
                 auditLogger.log({
                     phase: 4, action: 'MOVED',
-                    srcPath: file.srcPath, dstPath,
-                    size: file.size, status: 'OK',
+                    srcPath: move.srcPath, dstPath: move.dstPath,
+                    size: move.size, status: 'OK',
                 })
                 processed++
                 performanceController.increment()
             } catch (err) {
-                auditLogger.log({ phase: 4, action: 'ERROR', srcPath: file.srcPath, dstPath, error: err.message })
+                auditLogger.log({ phase: 4, action: 'ERROR', srcPath: move.srcPath, dstPath: move.dstPath, error: err.message })
                 failed++
-                errors.push({ file: file.srcPath, reason: err.message })
+                errors.push({ file: move.srcPath, reason: err.message })
             }
         }
 
         onProgress({
             phase: 4, status: 'running',
-            processed, failed, total: manifest.length,
-            percent: Math.round(((i + batch.length) / manifest.length) * 100),
+            processed, failed, total: plannedMoves.length,
+            percent: Math.round(((i + batch.length) / plannedMoves.length) * 100),
             ...performanceController.getStats(),
         })
 
@@ -183,30 +214,74 @@ async function phase4_execute(context, onProgress) {
     return { ok: success, processed, failed, errors, movedFiles }
 }
 
+// ── Phase 7: Cleanup — Search for empty folders ──────────────────
+async function phase7_cleanup(context, onProgress) {
+    onProgress({ phase: 7, status: 'scanning', message: 'Scanning for empty folders…' })
+    const { folderPaths } = context
+    const emptyFolders = []
+
+    function findEmpty(dir) {
+        const entries = fs.readdirSync(dir, { withFileTypes: true })
+        if (entries.length === 0) {
+            emptyFolders.push(dir)
+            return true
+        }
+        let allSubEmpty = true
+        for (const entry of entries) {
+            if (entry.isDirectory()) {
+                const isSubEmpty = findEmpty(path.join(dir, entry.name))
+                if (!isSubEmpty) allSubEmpty = false
+            } else {
+                allSubEmpty = false
+            }
+        }
+        if (allSubEmpty && entries.length > 0) {
+            // All children are directories and all are empty
+            // This is handled by recursion above, but we can double check
+        }
+        return false
+    }
+
+    for (const folderPath of folderPaths) {
+        findEmpty(folderPath)
+    }
+
+    onProgress({ phase: 7, status: 'done', emptyFolders })
+    return { ok: true, emptyFolders }
+}
+
+async function deleteEmptyFolders(folders, onProgress) {
+    let deleted = 0
+    for (const folder of folders) {
+        try {
+            if (fs.existsSync(folder) && fs.readdirSync(folder).length === 0) {
+                fs.rmdirSync(folder)
+                deleted++
+            }
+        } catch (err) {
+            console.error(`Failed to delete folder ${folder}: ${err.message}`)
+        }
+    }
+    return { ok: true, deleted }
+}
+
 // ── Phase 5: Validation & Integrity Check ─────────────────────────
 async function phase5_validate(context, onProgress) {
-    const { manifest, movedFiles } = context
-    if (!manifest) return { ok: false, error: 'No manifest for validation.' }
+    const { movedFiles } = context
+    if (!movedFiles) return { ok: true, passed: 0, missing: 0 }
 
-    onProgress({ phase: 5, status: 'validating', message: 'Verifying moved files at exact destinations…' })
+    onProgress({ phase: 5, status: 'validating', message: 'Verifying moved files…' })
 
-    // Use exact movedFiles map from Phase 4 if available; fall back to name-based check
-    const SAMPLE_SIZE = Math.min(50, manifest.length)
-    const sample = [...manifest].sort(() => Math.random() - 0.5).slice(0, SAMPLE_SIZE)
+    const entries = Object.entries(movedFiles)
+    const SAMPLE_SIZE = Math.min(50, entries.length)
+    const sample = entries.sort(() => Math.random() - 0.5).slice(0, SAMPLE_SIZE)
     let passed = 0, missing = 0
 
-    for (const file of sample) {
-        if (movedFiles && movedFiles[file.srcPath]) {
-            // Exact path check — strongest validation
-            const exactDst = movedFiles[file.srcPath]
-            if (fs.existsSync(exactDst)) {
-                passed++
-            } else {
-                missing++
-            }
-        } else {
-            // Fallback: skip files with no tracking info (may not have been moved)
+    for (const [src, dst] of sample) {
+        if (fs.existsSync(dst)) {
             passed++
+        } else {
+            missing++
         }
     }
 
@@ -215,42 +290,28 @@ async function phase5_validate(context, onProgress) {
     return { ok: true, passed, missing }
 }
 
-// ── Phase 6: Final Report Generation ──────────────────────────────
-async function phase6_report(context, onProgress) {
-    const logs = auditLogger.getAll()
-    const moved = logs.filter(l => l.action === 'MOVED').length
-    const blocked = logs.filter(l => l.action === 'BLOCKED').length
-    const errors = logs.filter(l => l.action === 'ERROR').length
-    const skipped = logs.filter(l => l.action === 'SKIP').length
-
-    const report = { moved, blocked, errors, skipped, total: logs.length, generatedAt: new Date().toISOString() }
-
-    checkpointLogger.writeCheckpoint({ phase: 6, complete: true, report })
-    onProgress({ phase: 6, status: 'done', report })
-    return { ok: true, report }
+// ── Update startPhase to include Phase 7 ──────────────────────────
+async function startPhase(phaseNumber, context, onProgress) {
+    _cancelled = false
+    switch (phaseNumber) {
+        case 1: return await phase1_scan(context, onProgress)
+        case 2: return await phase2_preview(context, onProgress)
+        case 3: return await phase3_confirm(context, onProgress) // NEW
+        case 4: return await phase4_execute(context, onProgress)
+        case 5: return await phase5_validate(context, onProgress)
+        case 6: return await phase6_report(context, onProgress)
+        case 7: return await phase7_cleanup(context, onProgress)
+        default: return { ok: false, error: `Unknown phase: ${phaseNumber}` }
+    }
 }
 
-// ── Cancel ─────────────────────────────────────────────────────────
-function cancel() {
-    _cancelled = true
-    performanceController.resume() // unblock pause if cancelled while paused
+async function phase3_confirm(context, onProgress) {
+    onProgress({ phase: 3, status: 'done', message: 'Ready for execution' })
     return { ok: true }
 }
 
-// ── Helpers ────────────────────────────────────────────────────────
-function safeUniqueDestination(srcPath, dstFolder) {
-    const base = path.basename(srcPath)
-    let dstPath = path.join(dstFolder, base)
-    if (!fs.existsSync(dstPath)) return dstPath
-    // Resolve collision by appending counter
-    const ext = path.extname(base)
-    const name = path.basename(base, ext)
-    let counter = 1
-    while (fs.existsSync(dstPath)) {
-        dstPath = path.join(dstFolder, `${name}_${counter}${ext}`)
-        counter++
-    }
-    return dstPath
+async function startCleanup(context) {
+    return await deleteEmptyFolders(context.folders)
 }
 
-module.exports = { startPhase, cancel }
+module.exports = { startPhase, cancel, startCleanup }

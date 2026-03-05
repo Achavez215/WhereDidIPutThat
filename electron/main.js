@@ -182,6 +182,7 @@ ipcMain.handle('phase:startPhase', async (event, phaseNumber, context) => {
 ipcMain.handle('phase:pause', () => performanceController.pause())
 ipcMain.handle('phase:resume', () => performanceController.resume())
 ipcMain.handle('phase:cancel', (_, ctx) => phaseEngine.cancel(ctx))
+ipcMain.handle('phase:startCleanup', (_, ctx) => phaseEngine.startCleanup(ctx))
 ipcMain.handle('phase:checkCheckpoint', () => checkpointLogger.readCheckpoint())
 ipcMain.handle('phase:clearCheckpoint', () => checkpointLogger.clearCheckpoint())
 

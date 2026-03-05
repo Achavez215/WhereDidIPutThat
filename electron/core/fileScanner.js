@@ -18,8 +18,11 @@ const CATEGORY_MAP = {
     images: ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.tif', '.svg', '.ico', '.heic', '.heif', '.raw', '.cr2', '.nef', '.arw'],
     videos: ['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpeg', '.mpg', '.3gp', '.ts'],
     audio: ['.mp3', '.wav', '.flac', '.aac', '.ogg', '.wma', '.m4a', '.opus', '.aiff'],
-    documents: ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.rtf', '.odt', '.ods', '.odp', '.md', '.csv', '.json', '.xml', '.html', '.htm'],
+    pdfs: ['.pdf'],
+    word_docs: ['.doc', '.docx', '.rtf', '.odt'],
+    documents: ['.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.ods', '.odp', '.md', '.csv', '.json', '.xml', '.html', '.htm'],
     archives: ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.xz', '.iso', '.dmg'],
+    applications: ['.exe', '.msi', '.bat', '.sh', '.app', '.com'],
 }
 
 function classifyFile(filePath) {
@@ -35,16 +38,16 @@ function classifyFile(filePath) {
 // ──────────────────────────────────────────────
 
 /**
- * scanFolders(folderPaths, onProgress) → { manifest, stats }
+ * scanFolders(folderPaths, onProgress) → { tree, stats }
  *
- * manifest: Array of { id, name, ext, category, srcPath, size, modified }
+ * tree: Hierarchical structure of folders and files
  * stats: { total, byCategory: { images: N, … } }
  */
 async function scanFolders(folderPaths, onProgress) {
-    const manifest = []
+    const tree = { name: 'Root', type: 'root', children: [] }
     let scanned = 0
     let skipped = 0
-    let idCounter = 0
+    const manifest = [] // Still keep a flat manifest for compatibility with phaseEngine
 
     for (const folderPath of folderPaths) {
         if (safetyGuard.isProtected(folderPath)) {
@@ -52,8 +55,17 @@ async function scanFolders(folderPaths, onProgress) {
             skipped++
             continue
         }
-        await walkDir(folderPath, manifest, () => {
-            idCounter++
+
+        const folderNode = {
+            name: path.basename(folderPath),
+            path: folderPath,
+            type: 'folder',
+            children: [],
+            stats: { images: 0, videos: 0, pdfs: 0, word_docs: 0, archives: 0, applications: 0, documents: 0, audio: 0, other: 0 }
+        }
+        tree.children.push(folderNode)
+
+        await walkDir(folderPath, folderNode, manifest, () => {
             scanned++
             if (scanned % BATCH_SIZE === 0) {
                 onProgress({ type: 'count', scanned, manifest: [] })
@@ -65,51 +77,65 @@ async function scanFolders(folderPaths, onProgress) {
     onProgress({ type: 'complete', scanned, skipped })
 
     const stats = buildStats(manifest)
-    checkpointLogger.writeCheckpoint({ phase: 1, manifest, stats, folderPaths })
+    checkpointLogger.writeCheckpoint({ phase: 1, tree, stats, folderPaths })
 
-    return { manifest, stats }
+    return { tree, manifest, stats }
 }
 
-function walkDir(dirPath, results, onFile) {
-    return new Promise((resolve) => {
-        let entries
-        try {
-            entries = fs.readdirSync(dirPath, { withFileTypes: true })
-        } catch {
-            resolve()
-            return
-        }
-        const subdirs = []
-        for (const entry of entries) {
-            const fullPath = path.join(dirPath, entry.name)
-            if (entry.name.startsWith('.')) continue
-            if (safetyGuard.isProtected(fullPath)) continue
+async function walkDir(dirPath, parentNode, manifest, onFile) {
+    let entries
+    try {
+        entries = fs.readdirSync(dirPath, { withFileTypes: true })
+    } catch {
+        return
+    }
 
-            if (entry.isDirectory()) {
-                subdirs.push(fullPath)
-            } else if (entry.isFile()) {
-                if (safetyGuard.isProtectedExtension(fullPath)) continue
-                let stat
-                try { stat = fs.statSync(fullPath) } catch { continue }
-                results.push({
-                    id: `f_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-                    name: entry.name,
-                    ext: path.extname(entry.name).toLowerCase(),
-                    category: classifyFile(fullPath),
-                    srcPath: fullPath,
-                    size: stat.size,
-                    modified: stat.mtimeMs,
-                })
-                onFile()
+    for (const entry of entries) {
+        const fullPath = path.join(dirPath, entry.name)
+        if (entry.name.startsWith('.')) continue
+        if (safetyGuard.isProtected(fullPath)) continue
+
+        if (entry.isDirectory()) {
+            const folderNode = {
+                name: entry.name,
+                path: fullPath,
+                type: 'folder',
+                children: [],
+                stats: { images: 0, videos: 0, pdfs: 0, word_docs: 0, archives: 0, applications: 0, documents: 0, audio: 0, other: 0 }
             }
+            parentNode.children.push(folderNode)
+            await walkDir(fullPath, folderNode, manifest, onFile)
+
+            // Bubble up stats to parent
+            for (const cat in folderNode.stats) {
+                parentNode.stats[cat] += folderNode.stats[cat]
+            }
+        } else if (entry.isFile()) {
+            if (safetyGuard.isProtectedExtension(fullPath)) continue
+            let stat
+            try { stat = fs.statSync(fullPath) } catch { continue }
+
+            const category = classifyFile(fullPath)
+            const fileEntry = {
+                id: `f_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                name: entry.name,
+                ext: path.extname(entry.name).toLowerCase(),
+                category: category,
+                srcPath: fullPath,
+                size: stat.size,
+                modified: stat.mtimeMs,
+            }
+
+            manifest.push(fileEntry)
+            parentNode.children.push({ ...fileEntry, type: 'file' })
+            parentNode.stats[category] = (parentNode.stats[category] || 0) + 1
+            onFile()
         }
-        // Process subdirectories
-        Promise.all(subdirs.map(d => walkDir(d, results, onFile))).then(resolve)
-    })
+    }
 }
 
 function buildStats(manifest) {
-    const byCategory = { images: 0, videos: 0, audio: 0, documents: 0, archives: 0, other: 0 }
+    const byCategory = { images: 0, videos: 0, audio: 0, pdfs: 0, word_docs: 0, documents: 0, archives: 0, applications: 0, other: 0 }
     let totalSize = 0
     for (const f of manifest) {
         byCategory[f.category] = (byCategory[f.category] || 0) + 1
