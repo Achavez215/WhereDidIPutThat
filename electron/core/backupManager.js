@@ -35,15 +35,13 @@ async function createBackup(files, destDrive, onProgress) {
     const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
     const backupPath = path.join(pathManager.getBackupRootDir(destDrive), `FileOrg_Backup_${ts}`)
 
-    // ── Disk space pre-check ─────────────────────────────────────
-    const totalSizeBytes = filesToBackup.reduce((sum, f) => sum + (f.size || 0), 0)
-    // Overhead: Backup + Final Destination (if on the same drive)
-    // For simplicity, we check for 2.1x the size to be extremely safe
-    const requiredSpace = Math.ceil(totalSizeBytes * 2.1)
+    // We only need space for the backup files themselves, plus a 5% safety buffer.
+    // The actual "move" in Phase 4 re-uses the existing space.
+    const requiredSpace = Math.ceil(totalSizeBytes * 1.05)
 
     const spaceCheck = diskUtils.checkDiskSpace(destDrive || os.homedir(), requiredSpace)
     if (!spaceCheck.ok) {
-        return { ok: false, error: `Insufficient space for safe operation. ${spaceCheck.message} (Estimated overhead: 2.1x total size)` }
+        return { ok: false, error: `Insufficient space for safety backup. Need ${pathManager.formatBytes(requiredSpace)} free on backup drive.` }
     }
 
     try {
@@ -132,10 +130,13 @@ async function rollback(backupMeta, onProgress) {
         await performanceController.waitIfPaused()
 
         const batch = entries.slice(i, i + BATCH_SIZE)
-        for (const entry of batch) {
+
+        // Asynchronous Rollback Batch
+        const restorePromises = batch.map(async (entry) => {
             try {
-                fs.mkdirSync(pathManager.toLongPath(path.dirname(entry.original)), { recursive: true })
-                fs.copyFileSync(pathManager.toLongPath(entry.backup), pathManager.toLongPath(entry.original))
+                await fs.promises.mkdir(pathManager.toLongPath(path.dirname(entry.original)), { recursive: true })
+                await fs.promises.copyFile(pathManager.toLongPath(entry.backup), pathManager.toLongPath(entry.original))
+
                 restored++
                 performanceController.increment()
                 auditLogger.log({ phase: 4, action: 'ROLLBACK', srcPath: entry.backup, dstPath: entry.original })
@@ -143,7 +144,9 @@ async function rollback(backupMeta, onProgress) {
                 failed++
                 auditLogger.log({ phase: 4, action: 'ROLLBACK_FAIL', srcPath: entry.backup, error: err.message })
             }
-        }
+        })
+
+        await Promise.all(restorePromises)
 
         onProgress({
             status: 'rollback', restored, failed, total: entries.length,
