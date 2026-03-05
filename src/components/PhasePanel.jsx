@@ -442,14 +442,14 @@ export default function PhasePanel() {
                     }}
                     onClose={() => setShowBackupPrompt(false)}
                     selectedDrive={useAppStore.getState().selectedDrive}
-                    manifest={manifest}
+                    stats={stats}
                 />
             )}
         </div>
     )
 }
 
-function BackupModal({ onAccept, onSkip, onClose, selectedDrive, manifest }) {
+function BackupModal({ onAccept, onSkip, onClose, selectedDrive, stats }) {
     const [skipConfirm, setSkipConfirm] = useState(false)
     const [creating, setCreating] = useState(false)
     const [progress, setProgress] = useState(null)
@@ -462,7 +462,7 @@ function BackupModal({ onAccept, onSkip, onClose, selectedDrive, manifest }) {
     const handleCreate = async () => {
         setCreating(true)
         const destDrive = selectedDrive?.mountPath || null
-        const res = await window.api.createBackup(manifest || [], destDrive)
+        const res = await window.api.createBackup(null, destDrive)
         setCreating(false)
         if (res.ok) onAccept(res.backupPath)
         else alert(`Backup failed: ${res.error}`)
@@ -476,7 +476,7 @@ function BackupModal({ onAccept, onSkip, onClose, selectedDrive, manifest }) {
                     We strongly recommend creating a backup before moving files.
                     A backup snapshot will be saved to a timestamped folder on the same drive.
                     <br /><br />
-                    <strong>{(manifest?.length || 0).toLocaleString()} files</strong> will be included.
+                    <strong>{(stats?.total || 0).toLocaleString()} files</strong> will be included.
                 </p>
                 {creating && progress && (
                     <div role="status" aria-live="polite" aria-label={`Backup progress: ${progress.percent || 0}% complete`}>
