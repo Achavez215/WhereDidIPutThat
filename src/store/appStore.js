@@ -59,11 +59,9 @@ export const useAppStore = create((set, get) => ({
     }),
 
     // ── File Manifest & Stats ─────────────────────────────────
-    manifest: null,
-    stats: null,
     scanTree: null,
     actionPlan: null,
-    setManifest: (manifest, stats, scanTree) => set({ manifest, stats, scanTree }),
+    setManifest: (stats, scanTree) => set({ stats, scanTree }),
     setActionPlan: (actionPlan) => set({ actionPlan }),
     updateRecommendation: (fileId, newDst) => set(s => ({
         actionPlan: {

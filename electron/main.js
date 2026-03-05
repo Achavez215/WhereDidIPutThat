@@ -183,10 +183,10 @@ ipcMain.handle('phase:startPhase', async (event, phaseNumber, context) => {
 
 ipcMain.handle('db:getFiles', (_, category, page, limit) => {
     const offset = (page - 1) * (limit || 50)
-    return dbManager.getFilesByCategory(category, limit || 50, offset)
+    return dbManager.getFiles(category, limit || 50, offset)
 })
 
-ipcMain.handle('db:getStats', () => dbManager.getTotalStats())
+ipcMain.handle('db:getStats', () => dbManager.getStats())
 
 ipcMain.handle('phase:pause', () => performanceController.pause())
 ipcMain.handle('phase:resume', () => performanceController.resume())
