@@ -34,7 +34,7 @@
     "build": {
         "appId": "com.local.wheredidiputhat",
         "productName": "WhereDidIPutThat",
-        "asar": false,
+        "asar": true,
         "publish": {
             "provider": "github",
             "owner": "Achavez215",
@@ -49,17 +49,19 @@
             "package.json"
         ],
         "win": {
-            "target": "portable",
+            "target": [
+                "portable",
+                "zip"
+            ],
             "icon": "build/icon.ico"
-        },
-        "mac": {
-            "target": "dmg",
-            "icon": "build/icon.icns",
-            "category": "public.app-category.utilities"
         },
         "nsis": {
             "oneClick": false,
-            "allowToChangeInstallationDirectory": true
+            "allowToChangeInstallationDirectory": true,
+            "createDesktopShortcut": "always",
+            "createStartMenuShortcut": true,
+            "shortcutName": "WhereDidIPutThat",
+            "runAfterFinish": true
         }
     }
 }

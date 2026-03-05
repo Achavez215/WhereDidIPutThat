@@ -65,12 +65,12 @@ export default function App() {
             <UpdateBanner />
             {/* ── Title bar ── */}
             <header className="app-header">
-                <img src="/logo.png" className="logo-img" alt="WhereDidIPutThat logo" style={{ height: '32px', width: '32px', borderRadius: '6px' }} />
-                <h1 style={{ marginLeft: '12px' }}>WhereDidIPutThat</h1>
+                <img src="./logo.png" className="logo-img" alt="WhereDidIPutThat logo" />
+                <h1>WhereDidIPutThat</h1>
                 <span className="badge" aria-label="Safe Mode is active">SAFE MODE</span>
                 <div className="spacer" />
                 <div className="local-badge" aria-label="This app is local only — no cloud sync">
-                    LOCAL ONLY — NO CLOUD
+                    LOCAL ONLY
                 </div>
             </header>
 

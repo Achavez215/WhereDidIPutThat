@@ -142,6 +142,14 @@ body,
   overflow: hidden;
 }
 
+.settings-controls-box {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--sp-4);
+  margin-top: -var(--sp-2);
+}
+
 /* ── Update Banner ──────────────────────────────────────────── */
 .update-banner {
   display: flex;
@@ -222,15 +230,22 @@ body,
   -webkit-app-region: drag;
 }
 
-.app-header .logo-icon {
-  font-size: 20px;
+.app-header .logo-img {
+  height: 32px;
+  width: auto;
+  object-fit: contain;
+  border-radius: var(--r-sm);
+  flex-shrink: 0;
 }
 
 .app-header h1 {
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.3px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .app-header .badge {
@@ -520,8 +535,15 @@ body,
 
 .grid-auto {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--sp-5);
+}
+
+.drive-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: var(--sp-4);
+  margin-top: var(--sp-4);
 }
 
 /* ── Drive Card ────────────────────────────────────────────── */
@@ -531,6 +553,9 @@ body,
   user-select: none;
   position: relative;
   overflow: hidden;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
 }
 
 .drive-card::before {

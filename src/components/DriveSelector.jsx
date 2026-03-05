@@ -206,6 +206,29 @@ export default function DriveSelector() {
                 />
             </div>
 
+            <div className="settings-controls-box mb-6">
+                <div className="grid-2">
+                    <div className="checkbox-row checked" onClick={() => { }}>
+                        <div className="custom-checkbox">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        </div>
+                        <div className="checkbox-label">
+                            Skip System & Library Folders
+                            <div className="checkbox-sub">Protects Windows, Program Files, etc. (Recommended)</div>
+                        </div>
+                    </div>
+                    <div className="checkbox-row" onClick={() => { }}>
+                        <div className="custom-checkbox">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        </div>
+                        <div className="checkbox-label">
+                            Filter Specific File Types
+                            <div className="checkbox-sub">Scan only for Images, Documents, Videos, etc.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {isScanningAll && (
                 <div className="alert scan-warning-box mb-6">
                     <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
@@ -213,18 +236,18 @@ export default function DriveSelector() {
                         <div style={{ flex: 1 }}>
                             <h4 style={{ margin: 0, color: 'var(--accent-amber)' }}>Full System Scan Mode</h4>
                             <p style={{ fontSize: 12, margin: '4px 0 0' }}>
-                                Scanning all drives will take significantly longer. System-critical directories remain protected by default.
+                                Scanning all drives will take significantly longer.
                             </p>
                         </div>
                         <div className="flex gap-2">
                             <button
                                 className={`btn btn-sm ${scanType === 'quick' ? 'btn-amber' : 'btn-ghost'}`}
                                 onClick={() => setScanType('quick')}
-                            >Quick Scan</button>
+                            >Quick</button>
                             <button
                                 className={`btn btn-sm ${scanType === 'deep' ? 'btn-amber' : 'btn-ghost'}`}
                                 onClick={() => setScanType('deep')}
-                            >Deep Scan</button>
+                            >Deep</button>
                         </div>
                     </div>
                 </div>
