@@ -296,7 +296,7 @@ export default function PhasePanel() {
                                         </div>
                                     </div>
                                     <div style={{ maxHeight: '400px', overflowY: 'auto', paddingRight: '12px' }}>
-                                        {loadingPreview ? (
+                                        {loadingPreview && previewFiles.length === 0 ? (
                                             <div className="p-8 text-center text-muted">Loading preview…</div>
                                         ) : previewFiles.length > 0 ? (
                                             previewFiles.map((f) => (
@@ -316,27 +316,6 @@ export default function PhasePanel() {
                                             <div className="p-8 text-center text-muted">No files found.</div>
                                         )}
                                     </div>
-                                    <div className="flex flex-center gap-4 mt-4">
-                                        {hasMore && (
-                                            <button
-                                                className="btn btn-ghost btn-sm"
-                                                disabled={loadingPreview}
-                                                onClick={loadMore}
-                                            >
-                                                {loadingPreview ? 'Loading…' : 'Load More Recommendations'}
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {isDone && num === 5 && p.passed != null && (
-                                <div className="flex gap-3 mt-4">
-                                    <span className="info-tag text-green">✅ {p.processed} files moved</span>
-                                    {actionPlan?.recommendations.filter(r => r.collisionHandled).length > 0 && (
-                                        <span className="info-tag text-amber">
-                                            ⚠️ {actionPlan.recommendations.filter(r => r.collisionHandled).length} files auto-renamed
-                                        </span>
                                     <div className="flex flex-center gap-4 mt-6 mb-4">
                                         {hasMore && (
                                             <button

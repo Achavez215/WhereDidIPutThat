@@ -35,6 +35,9 @@ async function createBackup(files, destDrive, onProgress) {
     const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
     const backupPath = path.join(pathManager.getBackupRootDir(destDrive), `FileOrg_Backup_${ts}`)
 
+    // ── Disk space pre-check ─────────────────────────────────────
+    const totalSizeBytes = filesToBackup.reduce((sum, f) => sum + (f.size || 0), 0)
+
     // We only need space for the backup files themselves, plus a 5% safety buffer.
     // The actual "move" in Phase 4 re-uses the existing space.
     const requiredSpace = Math.ceil(totalSizeBytes * 1.05)

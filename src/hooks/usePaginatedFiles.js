@@ -1,9 +1,5 @@
 import { useState, useEffect } from 'react';
 
-/**
- * usePaginatedFiles(category)
- * Hook for fetching file recommendations from the SQLite database in chunks.
- */
 export function usePaginatedFiles(category = 'all') {
     const [files, setFiles] = useState([]);
     const [page, setPage] = useState(0);
@@ -17,8 +13,6 @@ export function usePaginatedFiles(category = 'all') {
 
         try {
             const offset = page * LIMIT;
-            // page is used as multiplier for offset
-            // The IPC handler expects (category, limit, offset)
             const newFiles = await window.api.getFiles(category, LIMIT, offset);
 
             if (newFiles.length < LIMIT) {
@@ -34,26 +28,12 @@ export function usePaginatedFiles(category = 'all') {
         }
     };
 
-    // Reset and load first batch when category changes
+    // Reset when category changes
     useEffect(() => {
         setFiles([]);
         setPage(0);
         setHasMore(true);
-        // Using a functional update or a flag to ensure we don't double-trigger if category changes rapidly
-        const triggerInitialLoad = async () => {
-            setLoading(true);
-            try {
-                const results = await window.api.getFiles(category, LIMIT, 0);
-                if (results.length < LIMIT) setHasMore(false);
-                setFiles(results);
-                setPage(1);
-            } catch (err) {
-                console.error("Initial load failed", err);
-            } finally {
-                setLoading(false);
-            }
-        };
-        triggerInitialLoad();
+        loadMore();
     }, [category]);
 
     return { files, loadMore, loading, hasMore };

@@ -8,8 +8,17 @@ const fs = require('fs')
 const path = require('path')
 const pathManager = require('./pathManager')
 
-const LOG_FILE = pathManager.getLogFile()
+// Defer path resolution until called
+let _logFile = null
+function getFile() {
+    if (!_logFile) _logFile = pathManager.getLogFile()
+    return _logFile
+}
+
 const MAX_LOG_BYTES = 5 * 1024 * 1024 // 5 MB
+
+let logCounter = 0
+const ROTATION_CHECK_INTERVAL = 100
 
 function ensureDir() {
     // pathManager handles dir creation
@@ -17,27 +26,38 @@ function ensureDir() {
 
 function rotateLogs() {
     try {
-        const longFile = pathManager.toLongPath(LOG_FILE)
+        const file = getFile()
+        const longFile = pathManager.toLongPath(file)
         const stat = fs.existsSync(longFile) ? fs.statSync(longFile) : null
         if (stat && stat.size > MAX_LOG_BYTES) {
             const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-            const archivePath = LOG_FILE.replace('.jsonl', `_${ts}.jsonl`)
+            const archivePath = file.replace('.jsonl', `_${ts}.jsonl`)
             fs.renameSync(longFile, pathManager.toLongPath(archivePath))
         }
     } catch { }
 }
 
 /**
- * log(entry) — Appends a single audit entry as a JSON line.
+ * log(entry) — Appends a single audit entry without blocking the main thread.
  */
 function log(entry) {
     ensureDir()
-    rotateLogs()
+
+    // Only check rotation every 100 calls to save disk I/O
+    if (++logCounter >= ROTATION_CHECK_INTERVAL) {
+        logCounter = 0
+        rotateLogs()
+    }
+
     const line = JSON.stringify({
         ts: new Date().toISOString(),
         ...entry,
     }) + '\n'
-    fs.appendFileSync(pathManager.toLongPath(LOG_FILE), line, 'utf8')
+
+    const file = getFile()
+    // Fire and forget async write
+    fs.promises.appendFile(pathManager.toLongPath(file), line, 'utf8')
+        .catch(err => console.error('Audit log write failed:', err))
 }
 
 /**
@@ -45,7 +65,8 @@ function log(entry) {
  */
 function getAll() {
     try {
-        const longLog = pathManager.toLongPath(LOG_FILE)
+        const file = getFile()
+        const longLog = pathManager.toLongPath(file)
         if (!fs.existsSync(longLog)) return []
         const raw = fs.readFileSync(longLog, 'utf8')
         return raw
@@ -136,7 +157,8 @@ function exportReport(filePath, format) {
  */
 function clearLog() {
     try {
-        const longLog = pathManager.toLongPath(LOG_FILE)
+        const file = getFile()
+        const longLog = pathManager.toLongPath(file)
         if (fs.existsSync(longLog)) fs.unlinkSync(longLog)
         return { ok: true }
     } catch (err) {
@@ -144,4 +166,4 @@ function clearLog() {
     }
 }
 
-module.exports = { log, getAll, exportReport, clearLog, LOG_FILE }
+module.exports = { log, getAll, exportReport, clearLog, getLogFile: getFile }

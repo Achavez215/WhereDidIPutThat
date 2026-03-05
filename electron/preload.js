@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('api', {
     cancelPhase: (context) => ipcRenderer.invoke('phase:cancel', context),
     checkCheckpoint: () => ipcRenderer.invoke('phase:checkCheckpoint'),
     clearCheckpoint: () => ipcRenderer.invoke('phase:clearCheckpoint'),
+    hydrateCheckpoint: () => ipcRenderer.invoke('phase:hydrateCheckpoint'),
 
     // Database access (paginated)
     getFiles: (category, page, limit) => ipcRenderer.invoke('db:getFiles', category, page, limit),

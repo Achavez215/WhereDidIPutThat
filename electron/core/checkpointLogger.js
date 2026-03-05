@@ -8,19 +8,26 @@ const fs = require('fs')
 const path = require('path')
 const pathManager = require('./pathManager')
 
-const CHECKPOINT_FILE = pathManager.getCheckpointFile()
+// Defer path resolution until called, since app.getPath('userData')
+// requires the Electron app to be 'ready'.
+let _checkpointFile = null
+function getFile() {
+    if (!_checkpointFile) _checkpointFile = pathManager.getCheckpointFile()
+    return _checkpointFile
+}
 
 function writeCheckpoint(data) {
+    const file = getFile()
     const existing = readCheckpoint() || {}
     const updated = {
         ...existing,
         ...data,
         updatedAt: new Date().toISOString(),
     }
-    const dir = path.dirname(CHECKPOINT_FILE)
+    const dir = path.dirname(file)
     const longDir = pathManager.toLongPath(dir)
-    const longFile = pathManager.toLongPath(CHECKPOINT_FILE)
-    const longTempFile = pathManager.toLongPath(CHECKPOINT_FILE + '.tmp')
+    const longFile = pathManager.toLongPath(file)
+    const longTempFile = pathManager.toLongPath(file + '.tmp')
 
     if (!fs.existsSync(longDir)) fs.mkdirSync(longDir, { recursive: true })
 
@@ -31,7 +38,8 @@ function writeCheckpoint(data) {
 
 function readCheckpoint() {
     try {
-        const longFile = pathManager.toLongPath(CHECKPOINT_FILE)
+        const file = getFile()
+        const longFile = pathManager.toLongPath(file)
         if (!fs.existsSync(longFile)) return null
         const raw = fs.readFileSync(longFile, 'utf8')
         return JSON.parse(raw)
@@ -42,7 +50,8 @@ function readCheckpoint() {
 
 function clearCheckpoint() {
     try {
-        const longFile = pathManager.toLongPath(CHECKPOINT_FILE)
+        const file = getFile()
+        const longFile = pathManager.toLongPath(file)
         if (fs.existsSync(longFile)) {
             fs.unlinkSync(longFile)
         }

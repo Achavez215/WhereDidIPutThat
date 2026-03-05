@@ -166,7 +166,30 @@ export default function App() {
                             </div>
                             <button
                                 className="btn btn-amber btn-sm"
-                                onClick={() => { setStep('phases'); dismissCheckpoint() }}
+                                onClick={async () => {
+                                    // Wait for full hydration before navigating
+                                    const fullState = await window.api.hydrateCheckpoint()
+                                    if (!fullState) return
+
+                                    // Pass the recovered data into Zustand
+                                    if (fullState.tree) {
+                                        useAppStore.getState().setManifest(fullState.stats, fullState.tree)
+                                    }
+                                    if (fullState.actionPlan) {
+                                        useAppStore.getState().setActionPlan(fullState.actionPlan)
+                                    }
+
+                                    // Set the phase visually to where it left off
+                                    if (fullState.phase) {
+                                        useAppStore.getState().setCurrentPhase(fullState.phase)
+                                        useAppStore.getState().setPhaseStatus(fullState.phase, 'running')
+                                        // Allow backend to know we are resuming (for cleanuppass)
+                                        useAppStore.getState().setResuming(true)
+                                    }
+
+                                    setStep('phases')
+                                    dismissCheckpoint()
+                                }}
                                 id="btn-resume-checkpoint"
                                 aria-label={`Resume from Phase ${checkpoint.phase}`}
                             >

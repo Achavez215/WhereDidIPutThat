@@ -6,17 +6,29 @@ $viteJob = Start-Job -ScriptBlock {
     & ".\node_modules\.bin\vite.cmd" --port 5173
 }
 
-Write-Host "Waiting for Vite on port 5173..." -ForegroundColor Cyan
+Write-Host "Waiting for Vite to start..." -ForegroundColor Cyan
 Start-Sleep -Seconds 5
+
+# Try to find which port Vite started on
+$out = Receive-Job $viteJob -Keep
+$port = 5173
+if ($out -match "http://localhost:(\d+)") {
+    $port = $matches[1]
+    Write-Host "Vite detected on port $port" -ForegroundColor Green
+}
+else {
+    Write-Host "Could not detect Vite port from output, defaulting to 5173" -ForegroundColor Yellow
+}
 
 # Ping Vite
 $viteOk = $false
 try {
-    $resp = Invoke-WebRequest -Uri 'http://localhost:5173' -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
+    $resp = Invoke-WebRequest -Uri "http://localhost:$port" -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
     Write-Host "Vite OK - HTTP $($resp.StatusCode)" -ForegroundColor Green
     $viteOk = $true
-} catch {
-    Write-Host "Vite did not respond!" -ForegroundColor Red
+}
+catch {
+    Write-Host "Vite did not respond on port $port!" -ForegroundColor Red
     Receive-Job $viteJob | ForEach-Object { Write-Host $_ }
 }
 
@@ -29,11 +41,15 @@ if (-not $viteOk) {
 
 # Launch Electron
 Write-Host "Launching Electron..." -ForegroundColor Cyan
-$stdoutFile = ".\smoke_stdout.txt"
-$stderrFile = ".\smoke_stderr.txt"
+$stdoutFile = "C:\Users\omg\OneDrive\Credit_Dispute_Letters\Desktop\WhereDidIPutThat\smoke_stdout.txt"
+$stderrFile = "C:\Users\omg\OneDrive\Credit_Dispute_Letters\Desktop\WhereDidIPutThat\smoke_stderr.txt"
+
+# Ensure files exist
+"" | Out-File $stdoutFile
+"" | Out-File $stderrFile
 
 $proc = Start-Process `
-    -FilePath ".\node_modules\electron\dist\electron.exe" `
+    -FilePath "C:\Users\omg\OneDrive\Credit_Dispute_Letters\Desktop\WhereDidIPutThat\node_modules\electron\dist\electron.exe" `
     -ArgumentList "." `
     -PassThru `
     -RedirectStandardError $stderrFile `
@@ -45,25 +61,27 @@ Start-Sleep -Seconds 10
 $exited = $proc.HasExited
 if (-not $exited) {
     Write-Host "PASS - Electron is still running after 10s" -ForegroundColor Green
-} else {
+}
+else {
     Write-Host "FAIL - Electron exited early (exit code: $($proc.ExitCode))" -ForegroundColor Red
 }
 
 if (Test-Path $stderrFile) {
-    $errContent = (Get-Content $stderrFile -Raw).Trim()
-    if ($errContent) {
+    $errContent = (Get-Content $stderrFile -Raw)
+    if ($errContent -and $errContent.Trim()) {
         Write-Host "--- Electron STDERR ---" -ForegroundColor Yellow
-        Write-Host $errContent
-    } else {
+        Write-Host $errContent.Trim()
+    }
+    else {
         Write-Host "Stderr: clean (no errors)" -ForegroundColor Green
     }
 }
 
 if (Test-Path $stdoutFile) {
-    $outContent = (Get-Content $stdoutFile -Raw).Trim()
-    if ($outContent) {
+    $outContent = (Get-Content $stdoutFile -Raw)
+    if ($outContent -and $outContent.Trim()) {
         Write-Host "--- Electron STDOUT ---" -ForegroundColor Cyan
-        Write-Host $outContent
+        Write-Host $outContent.Trim()
     }
 }
 

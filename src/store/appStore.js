@@ -172,6 +172,8 @@ export const useAppStore = create((set, get) => ({
     step: 'permission', // 'permission' | 'drive' | 'folders' | 'mapping' | 'phases' | 'report'
     setView: (v) => set({ view: v }),
     setStep: (s) => set({ step: s }),
+    isResuming: false,
+    setResuming: (v) => set({ isResuming: v }),
 }))
 
 export { PHASES }

@@ -183,6 +183,21 @@ async function phase4_execute(context, onProgress) {
 
     const fsPromises = require('fs').promises
 
+    // Crash Cleanup pass: if resuming, delete any destination files that aren't in movedFiles
+    if (context.isResuming && plannedMoves.length > 0) {
+        onProgress({ phase: 4, status: 'running', message: 'Cleaning up potentially corrupt files from crash…' })
+        for (const move of plannedMoves) {
+            const longDst = pathManager.toLongPath(move.dstPath)
+            if (fs.existsSync(longDst) && !movedFiles[move.srcPath]) {
+                try {
+                    await fsPromises.unlink(longDst)
+                } catch (e) {
+                    console.warn(`[Cleanup] Failed to unlink ${move.dstPath}:`, e.message)
+                }
+            }
+        }
+    }
+
     for (let i = 0; i < plannedMoves.length; i += BATCH_SIZE) {
         if (_cancelled) break
         await performanceController.waitIfPaused()
