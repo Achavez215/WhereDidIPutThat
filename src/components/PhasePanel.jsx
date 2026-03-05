@@ -104,7 +104,7 @@ export default function PhasePanel() {
             ),
             backupPath: backupPath || null,
             backupManifestPath: backupManifestPath || null,
-            selectedDrive,
+            selectedDrive: useAppStore.getState().selectedDrive,
         }
 
         if (phaseNum === 4) {
@@ -137,7 +137,7 @@ export default function PhasePanel() {
     const startPhase = async (phaseNum) => {
         // Phase 3 special: trigger backup UI first
         if (phaseNum === 3) {
-            setPhaseStatus(3, 'done')
+            setShowBackupPrompt(true)
             return
         }
 
@@ -225,227 +225,242 @@ export default function PhasePanel() {
                                 <div style={{ marginLeft: 'auto' }}>
                                     {isDone && <span className="info-tag text-green" aria-live="polite">Completed</span>}
                                     {isError && <span className="info-tag text-red" aria-live="polite">Error</span>}
-                                    {status === 'cancelled' && <span className="info-tag text-amber" aria-live="polite">Cancelled</span>}
-                                </div>
-                            </div>
-
-                            {/* Progress section — aria-live so screen readers announce updates */}
-                            {isActive && (
-                                <div role="status" aria-live="polite" aria-label={`Phase ${num} progress: ${p.percent || 0}% complete, ${p.processed || 0} of ${p.total || 0} files`}>
-                                    <ProgressBar percent={p.percent || 0} label={`Phase ${num} progress`} />
-                                    <div className="phase-stats mt-4">
-                                        <div className="phase-stat">
-                                            <div className="phase-stat-value">{(p.processed || 0).toLocaleString()}</div>
-                                            <div className="phase-stat-label">Processed</div>
-                                        </div>
-                                        <div className="phase-stat">
-                                            <div className="phase-stat-value">{(p.total || 0).toLocaleString()}</div>
-                                            <div className="phase-stat-label">Total Files</div>
-                                        </div>
-                                        {num === 4 && (
-                                            <div className="phase-stat">
-                                                <div className="phase-stat-value">{formatBytes(p.bytesProcessed || 0)}</div>
-                                                <div className="phase-stat-label">of {formatBytes(p.totalBytes || 0)}</div>
-                                            </div>
-                                        )}
-                                        <div className="phase-stat">
-                                            <div className="phase-stat-value text-red">{(p.failed || 0).toLocaleString()}</div>
-                                            <div className="phase-stat-label">Failed</div>
-                                        </div>
-                                    </div>
-                                    <PerfRow stats={perfStats} />
-                                    {num === 4 && p.collision && (
-                                        <div className="collision-toast mt-2 p-2 bg-amber-900/20 text-amber-400 rounded text-sm border border-amber-500/30" role="alert" aria-live="assertive">
-                                            <span aria-hidden="true">🔄</span>
-                                            Collision avoided: file renamed to <strong>{p.lastMove.dst.split('\\').pop()}</strong>
-                                        </div>
-                                    )}
-                                    {num === 4 && perfStats?.bytesPerSecond > 0 && (
-                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'right', marginTop: '4px' }}>
-                                            Throughput: {formatBytes(perfStats.bytesPerSecond)}/s
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Done stats */}
-                            {isDone && num === 1 && (
-                                <div className="mt-4">
-                                    <div className="flex gap-3 mb-4" style={{ flexWrap: 'wrap' }}>
-                                        <span className="info-tag">📁 {stats.total.toLocaleString()} files indexed</span>
-                                        {Object.entries(stats.byCategory).map(([k, v]) => v > 0 && (
-                                            <span key={k} className="info-tag">
-                                                {v.toLocaleString()} {k}
-                                            </span>
-                                        ))}
-                                    </div>
-                                    <ScanOverview />
-                                </div>
-                            )}
-
-                            {isDone && num === 2 && actionPlan && (
-                                <div className="mt-4">
-                                    <div className="flex gap-3 mb-4 flex-between">
-                                        <div className="flex gap-2">
-                                            <span className="info-tag">📋 Overview of recommendations</span>
-                                            {actionPlan.duplicatesCount > 0 && (
-                                                <span className="info-tag text-amber">
-                                                    ⚠️ {actionPlan.duplicatesCount} duplicates ({formatBytes(actionPlan.potentialSavings)} potential savings)
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div style={{ maxHeight: '400px', overflowY: 'auto', paddingRight: '12px' }}>
-                                        {loadingPreview && previewFiles.length === 0 ? (
-                                            <div className="p-8 text-center text-muted">Loading preview…</div>
-                                        ) : previewFiles.length > 0 ? (
-                                            previewFiles.map((f) => (
-                                                <ActionPlanCard
-                                                    key={f.id}
-                                                    recommendation={{
-                                                        fileId: f.id,
-                                                        fileName: f.name,
-                                                        srcPath: f.srcPath,
-                                                        category: f.category,
-                                                        suggestedDst: f.suggestedDst,
-                                                        isDuplicate: f.isDuplicate === 1
-                                                    }}
-                                                />
-                                            ))
-                                        ) : (
-                                            <div className="p-8 text-center text-muted">No files found.</div>
-                                        )}
-                                    </div>
-                                    <div className="flex flex-center gap-4 mt-6 mb-4">
-                                        {hasMore && (
-                                            <button
-                                                className="btn btn-ghost btn-sm border border-muted hover:border-teal-500"
-                                                disabled={loadingPreview}
-                                                onClick={loadMore}
-                                            >
-                                                {loadingPreview ? 'Loading…' : '👇 Load More Recommendations'}
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {isDone && num === 5 && p.processed != null && (
-                                <div className="flex gap-3 mt-4">
-                                    <span className="info-tag text-green">✅ {p.processed} files moved</span>
-                                    {p.renamed > 0 && (
-                                        <span className="info-tag text-amber">
-                                            ⚠️ {p.renamed} files auto-renamed
-                                        </span>
-                                    )}
-                                    {p.missing > 0 && <span className="info-tag text-amber">⚠️ {p.missing} not found</span>}
-                                </div>
-                            )}
-
-                            {num === 3 && status !== 'done' && (
-                                <div className="mt-4 p-4 rounded-lg bg-teal-900/20 border border-teal-500/30">
-                                    <h4 className="flex items-center gap-2 text-teal-400 mb-2">
-                                        <span>🛡️ Review Checkpoint</span>
-                                    </h4>
-                                    <p className="text-sm text-muted mb-4">
-                                        Please review the Action Plan and folder exclusions above.
-                                        Once you are satisfied, click the button below to lock in the plan for execution.
-                                    </p>
-                                    <button
-                                        className="btn btn-primary w-full"
-                                        onClick={() => startPhase(3)}
-                                        disabled={status === 'running'}
-                                    >
-                                        I Have Reviewed the Plan
-                                    </button>
-                                </div>
-                            )}
-
-                            {isDone && num === 7 && p.emptyFolders && (
-                                <div className="mt-4">
-                                    <p className="mb-3">Found <strong>{p.emptyFolders.length}</strong> empty folders after reorganization.</p>
-                                    <div className="flex gap-2">
-                                        <button className="btn btn-danger btn-sm" onClick={() => handleCleanup(p.emptyFolders)}>
-                                            Delete All Empty Folders
-                                        </button>
-                                        <button className="btn btn-ghost btn-sm" onClick={() => setPhaseStatus(7, 'skipped')}>
-                                            Keep All
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Action buttons */}
-                            <div className="phase-actions">
-                                {!isDone && status !== 'running' && isPhaseUnlocked(num) && (
-                                    <button
-                                        className="btn btn-primary"
-                                        onClick={() => startPhase(num)}
-                                        id={`btn-start-phase-${num}`}
-                                        disabled={status === 'cancelled'}
-                                        aria-label={status === 'error' ? `Retry Phase ${num}: ${title}` : `Start Phase ${num}: ${title}`}
-                                    >
-                                        <span aria-hidden="true">{status === 'error' ? '🔄' : '▶'}</span>
-                                        {status === 'error' ? ' Retry Phase' : ` Start Phase ${num}`}
-                                    </button>
-                                )}
-                                {isActive && (
-                                    <>
-                                        <button
-                                            className="btn btn-ghost"
-                                            onClick={togglePause}
-                                            id={`btn-pause-phase-${num}`}
-                                            aria-label={isPaused ? `Resume Phase ${num}` : `Pause Phase ${num}`}
-                                            aria-pressed={isPaused}
-                                        >
-                                            <span aria-hidden="true">{isPaused ? '▶' : '⏸'}</span>
-                                            {isPaused ? ' Resume' : ' Pause'}
-                                        </button>
-                                        <button
-                                            className="btn btn-danger"
-                                            onClick={handleCancel}
-                                            id={`btn-cancel-phase-${num}`}
-                                            aria-label={`Cancel Phase ${num} and trigger safe rollback`}
-                                        >
-                                            <span aria-hidden="true">✕</span> Cancel (Safe Rollback)
-                                        </button>
-                                    </>
-                                )}
-                                {isDone && num === 6 && (
-                                    <button
-                                        className="btn btn-green"
-                                        onClick={() => setStep('report')}
-                                        id="btn-view-report"
-                                        aria-label="View full audit report"
-                                    >
-                                        <span aria-hidden="true">📋</span> View Full Report
-                                    </button>
-                                )}
+                                    {status === 'cancelled' && <span className="info-tag text-amber" aria-live=\"polite\">Cancelled</span>}
                             </div>
                         </div>
+
+                            {/* Progress section — aria-live so screen readers announce updates */ }
+                    {
+                        isActive && (
+                            <div role="status" aria-live="polite" aria-label={`Phase ${num} progress: ${p.percent || 0}% complete, ${p.processed || 0} of ${p.total || 0} files`}>
+                                <ProgressBar percent={p.percent || 0} label={`Phase ${num} progress`} />
+                                <div className="phase-stats mt-4">
+                                    <div className="phase-stat">
+                                        <div className="phase-stat-value">{(p.processed || 0).toLocaleString()}</div>
+                                        <div className="phase-stat-label">Processed</div>
+                                    </div>
+                                    <div className="phase-stat">
+                                        <div className="phase-stat-value">{(p.total || 0).toLocaleString()}</div>
+                                        <div className="phase-stat-label">Total Files</div>
+                                    </div>
+                                    {num === 4 && (
+                                        <div className="phase-stat">
+                                            <div className="phase-stat-value">{formatBytes(p.bytesProcessed || 0)}</div>
+                                            <div className="phase-stat-label">of {formatBytes(p.totalBytes || 0)}</div>
+                                        </div>
+                                    )}
+                                    <div className="phase-stat">
+                                        <div className="phase-stat-value text-red">{(p.failed || 0).toLocaleString()}</div>
+                                        <div className="phase-stat-label">Failed</div>
+                                    </div>
+                                </div>
+                                <PerfRow stats={perfStats} />
+                                {num === 4 && p.collision && (
+                                    <div className="collision-toast mt-2 p-2 bg-amber-900/20 text-amber-400 rounded text-sm border border-amber-500/30" role="alert" aria-live="assertive">
+                                        <span aria-hidden="true">🔄</span>
+                                        Collision avoided: file renamed to <strong>{p.lastMove.dst.split('\\').pop()}</strong>
+                                    </div>
+                                )}
+                                {num === 4 && perfStats?.bytesPerSecond > 0 && (
+                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'right', marginTop: '4px' }}>
+                                        Throughput: {formatBytes(perfStats.bytesPerSecond)}/s
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    }
+
+                    {/* Done stats */ }
+                    {
+                        isDone && num === 1 && (
+                            <div className="mt-4">
+                                <div className="flex gap-3 mb-4" style={{ flexWrap: 'wrap' }}>
+                                    <span className="info-tag">📁 {stats.total.toLocaleString()} files indexed</span>
+                                    {Object.entries(stats.byCategory).map(([k, v]) => v > 0 && (
+                                        <span key={k} className="info-tag">
+                                            {v.toLocaleString()} {k}
+                                        </span>
+                                    ))}
+                                </div>
+                                <ScanOverview />
+                            </div>
+                        )
+                    }
+
+                    {
+                        isDone && num === 2 && actionPlan && (
+                            <div className="mt-4">
+                                <div className="flex gap-3 mb-4 flex-between">
+                                    <div className="flex gap-2">
+                                        <span className="info-tag">📋 Overview of recommendations</span>
+                                        {actionPlan.duplicatesCount > 0 && (
+                                            <span className="info-tag text-amber">
+                                                ⚠️ {actionPlan.duplicatesCount} duplicates ({formatBytes(actionPlan.potentialSavings)} potential savings)
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div style={{ maxHeight: '400px', overflowY: 'auto', paddingRight: '12px' }}>
+                                    {loadingPreview && previewFiles.length === 0 ? (
+                                        <div className="p-8 text-center text-muted">Loading preview…</div>
+                                    ) : previewFiles.length > 0 ? (
+                                        previewFiles.map((f) => (
+                                            <ActionPlanCard
+                                                key={f.id}
+                                                recommendation={{
+                                                    fileId: f.id,
+                                                    fileName: f.name,
+                                                    srcPath: f.srcPath,
+                                                    category: f.category,
+                                                    suggestedDst: f.suggestedDst,
+                                                    isDuplicate: f.isDuplicate === 1
+                                                }}
+                                            />
+                                        ))
+                                    ) : (
+                                        <div className="p-8 text-center text-muted">No files found.</div>
+                                    )}
+                                </div>
+                                <div className="flex flex-center gap-4 mt-6 mb-4">
+                                    {hasMore && (
+                                        <button
+                                            className="btn btn-ghost btn-sm border border-muted hover:border-teal-500"
+                                            disabled={loadingPreview}
+                                            onClick={loadMore}
+                                        >
+                                            {loadingPreview ? 'Loading…' : '👇 Load More Recommendations'}
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        )
+                    }
+
+                    {
+                        isDone && num === 5 && p.processed != null && (
+                            <div className="flex gap-3 mt-4">
+                                <span className="info-tag text-green">✅ {p.processed} files moved</span>
+                                {p.renamed > 0 && (
+                                    <span className="info-tag text-amber">
+                                        ⚠️ {p.renamed} files auto-renamed
+                                    </span>
+                                )}
+                                {p.missing > 0 && <span className="info-tag text-amber">⚠️ {p.missing} not found</span>}
+                            </div>
+                        )
+                    }
+
+                    {
+                        num === 3 && status !== 'done' && (
+                            <div className="mt-4 p-4 rounded-lg bg-teal-900/20 border border-teal-500/30">
+                                <h4 className="flex items-center gap-2 text-teal-400 mb-2">
+                                    <span>🛡️ Review Checkpoint</span>
+                                </h4>
+                                <p className="text-sm text-muted mb-4">
+                                    Please review the Action Plan and folder exclusions above.
+                                    Once you are satisfied, click the button below to lock in the plan for execution.
+                                </p>
+                                <button
+                                    className="btn btn-primary w-full"
+                                    onClick={() => startPhase(3)}
+                                    disabled={status === 'running'}
+                                >
+                                    I Have Reviewed the Plan
+                                </button>
+                            </div>
+                        )
+                    }
+
+                    {
+                        isDone && num === 7 && p.emptyFolders && (
+                            <div className="mt-4">
+                                <p className="mb-3">Found <strong>{p.emptyFolders.length}</strong> empty folders after reorganization.</p>
+                                <div className="flex gap-2">
+                                    <button className="btn btn-danger btn-sm" onClick={() => handleCleanup(p.emptyFolders)}>
+                                        Delete All Empty Folders
+                                    </button>
+                                    <button className="btn btn-ghost btn-sm" onClick={() => setPhaseStatus(7, 'skipped')}>
+                                        Keep All
+                                    </button>
+                                </div>
+                            </div>
+                        )
+                    }
+
+                    {/* Action buttons */ }
+                    <div className="phase-actions">
+                        {!isDone && status !== 'running' && isPhaseUnlocked(num) && (
+                            <button
+                                className="btn btn-primary"
+                                onClick={() => startPhase(num)}
+                                id={`btn-start-phase-${num}`}
+                                disabled={status === 'cancelled'}
+                                aria-label={status === 'error' ? `Retry Phase ${num}: ${title}` : `Start Phase ${num}: ${title}`}
+                            >
+                                <span aria-hidden="true">{status === 'error' ? '🔄' : '▶'}</span>
+                                {status === 'error' ? ' Retry Phase' : ` Start Phase ${num}`}
+                            </button>
+                        )}
+                        {isActive && (
+                            <>
+                                <button
+                                    className="btn btn-ghost"
+                                    onClick={togglePause}
+                                    id={`btn-pause-phase-${num}`}
+                                    aria-label={isPaused ? `Resume Phase ${num}` : `Pause Phase ${num}`}
+                                    aria-pressed={isPaused}
+                                >
+                                    <span aria-hidden=\"true\">{isPaused ? '▶' : '⏸'}</span>
+                                {isPaused ? ' Resume' : ' Pause'}
+                            </button>
+                        <button
+                            className="btn btn-danger"
+                            onClick={handleCancel}
+                            id={`btn-cancel-phase-${num}`}
+                            aria-label={`Cancel Phase ${num} and trigger safe rollback`}
+                        >
+                            <span aria-hidden=\"true\">✕</span> Cancel (Safe Rollback)
+                    </button>
+                                    </>
+                                )}
+            {isDone && num === 6 && (
+                <button
+                    className="btn btn-green"
+                    onClick={() => setStep('report')}
+                    id=\"btn-view-report\"
+            aria-label=\"View full audit report\"
+                                    >
+            <span aria-hidden=\"true\">📋</span> View Full Report
+                                    </button >
+                                )
+}
+                            </div >
+                        </div >
                     )
                 })}
-            </div>
+            </div >
 
-            {/* Backup Prompt Modal triggers from phase 3 */}
-            {showBackupPrompt && (
-                <BackupModal
-                    onAccept={async (bPath) => {
-                        setShowBackupPrompt(false)
-                        setBackup({ backupPath: bPath, manifestPath: bPath ? `${bPath}\\backup_manifest.json` : null })
-                        await startPhase(3)
-                    }}
-                    onSkip={() => {
-                        setShowBackupPrompt(false)
-                        setBackupSkipped(true)
-                        startPhase(3)
-                    }}
-                    onClose={() => setShowBackupPrompt(false)}
-                    selectedDrive={useAppStore.getState().selectedDrive}
-                    stats={stats}
-                />
-            )}
-        </div>
+    {/* Backup Prompt Modal triggers from phase 3 */ }
+{
+    showBackupPrompt && (
+        <BackupModal
+            onAccept={async (bPath) => {
+                setShowBackupPrompt(false)
+                setBackup({ backupPath: bPath, manifestPath: bPath ? `${bPath}\\backup_manifest.json` : null })
+                await startPhase(3)
+            }}
+            onSkip={() => {
+                setShowBackupPrompt(false)
+                setBackupSkipped(true)
+                startPhase(3)
+            }}
+            onClose={() => setShowBackupPrompt(false)}
+            selectedDrive={useAppStore.getState().selectedDrive}
+            stats={stats}
+        />
+    )
+}
+        </div >
     )
 }
 
