@@ -1,15 +1,7 @@
-/**
- * safetyGuard.js
- * The central protection layer. Every single file/folder operation
- * in the system must pass through this module before proceeding.
- */
-
 const path = require('path')
+const { app } = require('electron')
 
-// ──────────────────────────────────────────────
 // Hard-coded protected paths (Windows)
-// ──────────────────────────────────────────────
-// Windows constants
 const WIN_PROTECTED_ROOTS = [
     'C:\\Windows',
     'C:\\Program Files',
@@ -19,10 +11,10 @@ const WIN_PROTECTED_ROOTS = [
     'C:\\Recovery',
     'C:\\$Recycle.Bin',
     'C:\\Boot',
-    'C:\\EFI',
+    'C:\\EFI'
 ]
 
-// macOS constants
+// macOS protected paths
 const MAC_PROTECTED_ROOTS = [
     '/System',
     '/Library',
@@ -31,33 +23,13 @@ const MAC_PROTECTED_ROOTS = [
     '/sbin',
     '/private',
     '/etc',
-    '/var',
+    '/var'
 ]
-
-// Dynamically added from environment (Windows)
-const winEnvProtected = process.platform === 'win32' ? [
-    process.env.WINDIR,
-    process.env.SystemRoot,
-    process.env.ProgramFiles,
-    process.env['ProgramFiles(x86)'],
-    process.env.ProgramData,
-].filter(Boolean) : []
-
-const ALL_PROTECTED = [...new Set([
-    ...(process.platform === 'win32' ? WIN_PROTECTED_ROOTS : MAC_PROTECTED_ROOTS),
-    ...winEnvProtected
-])].map(p => normalize(p))
-
-// Note: We rely on absolute path checks (ALL_PROTECTED) for system safety.
-// PROTECTED_NAMES is removed to prevent accidental blocking of user-owned
-// folders with common names (like "Library" or "Windows") in safe locations.
 
 // Extensions that must never be moved
 const PROTECTED_EXTENSIONS = new Set([
-    '.exe', '.dll', '.sys', '.drv', '.ocx',
-    '.msi', '.msp', '.cab', '.bat', '.cmd',
-    '.ps1', '.vbs', '.scr', '.cpl', '.inf',
-    '.lnk', // shortcuts could point to critical locations
+    '.exe', '.dll', '.sys', '.drv', '.ocx', '.msi', '.msp', '.cab',
+    '.bat', '.cmd', '.ps1', '.vbs', '.scr', '.cpl', '.inf', '.lnk'
 ])
 
 function normalize(p) {
@@ -78,21 +50,55 @@ function normalize(p) {
     return processed.toLowerCase()
 }
 
+let ALL_PROTECTED = null
+
+/**
+ * getProtectedRoots() -> string[]
+ * Dynamically fetches system-critical paths from Electron.
+ * Cached after the first call.
+ */
+function getProtectedRoots() {
+    if (ALL_PROTECTED) return ALL_PROTECTED
+
+    // Dynamically grab OS-specific critical user paths via Electron
+    const systemPaths = []
+    try {
+        systemPaths.push(app.getPath('userData'))
+        systemPaths.push(app.getPath('appData'))
+        // Do NOT block 'home' root entirely, only specific system-critical subpaths if needed.
+        // If we block 'home', users can't organize their own Documents/Downloads inside it.
+    } catch (e) {
+        console.warn('Electron app not ready, system path protection may be limited.')
+    }
+
+    const winEnvProtected = process.platform === 'win32' ? [
+        process.env.WINDIR,
+        process.env.SystemRoot,
+        process.env.ProgramFiles,
+        process.env['ProgramFiles(x86)'],
+        process.env.ProgramData,
+    ].filter(Boolean) : []
+
+    const hardcoded = process.platform === 'win32' ? WIN_PROTECTED_ROOTS : MAC_PROTECTED_ROOTS
+
+    ALL_PROTECTED = [...new Set([...hardcoded, ...winEnvProtected, ...systemPaths])].map(p => normalize(p))
+    return ALL_PROTECTED
+}
+
 /**
  * isProtected(targetPath) → boolean
- * Returns true if targetPath is at or inside any protected directory,
- * or if the folder name itself is in the protected names list.
+ * Returns true if targetPath is at or inside any protected directory.
  */
 function isProtected(targetPath) {
     if (!targetPath) return true
     const norm = normalize(targetPath)
+    const roots = getProtectedRoots()
 
-    // Check against known protected roots
-    for (const root of ALL_PROTECTED) {
-        // Match the root exactly or any sub-item (ensure trailing slash for prefix match)
+    for (const root of roots) {
+        // Strict match: Must be exactly the root, or directly inside the root
+        // Ensures 'C:/Windows/System32' is blocked, but 'D:/My Windows Backups' is safe.
         if (norm === root || norm.startsWith(root + '/')) return true
     }
-
     return false
 }
 
@@ -107,8 +113,7 @@ function isProtectedExtension(filePath) {
 
 /**
  * validateTarget(srcPath, dstPath) → { ok, reason }
- * Validates a proposed move operation. Returns ok:false with a reason
- * if any safety rule is violated.
+ * Validates a proposed move operation.
  */
 function validateTarget(srcPath, dstPath) {
     if (!srcPath || !dstPath) {

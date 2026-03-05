@@ -53,17 +53,18 @@ async function createBackup(files, destDrive, onProgress) {
         await performanceController.waitIfPaused()
 
         const batch = files.slice(i, i + BATCH_SIZE)
-        for (const file of batch) {
-            if (_cancelled) break
-            if (safetyGuard.isProtected(file.srcPath)) continue
+        const copyPromises = batch.map(async (file) => {
+            if (_cancelled || safetyGuard.isProtected(file.srcPath)) return null
 
-            // Preserve relative path structure inside backup (handles UNC + drive paths)
             const relPath = path.relative(path.parse(file.srcPath).root, file.srcPath)
             const dstPath = path.join(backupPath, relPath)
 
             try {
-                fs.mkdirSync(pathManager.toLongPath(path.dirname(dstPath)), { recursive: true })
-                fs.copyFileSync(pathManager.toLongPath(file.srcPath), pathManager.toLongPath(dstPath))
+                // Ensure directory exists asynchronously
+                await fs.promises.mkdir(pathManager.toLongPath(path.dirname(dstPath)), { recursive: true })
+                // Copy asynchronously so the main thread isn't blocked by large files
+                await fs.promises.copyFile(pathManager.toLongPath(file.srcPath), pathManager.toLongPath(dstPath))
+
                 backupManifest.push({ original: file.srcPath, backup: dstPath, size: file.size })
                 copied++
                 performanceController.increment()
@@ -71,7 +72,10 @@ async function createBackup(files, destDrive, onProgress) {
                 failed++
                 auditLogger.log({ phase: 3, action: 'BACKUP_FAIL', srcPath: file.srcPath, error: err.message })
             }
-        }
+        })
+
+        // Wait for the whole batch to finish copying concurrently
+        await Promise.all(copyPromises)
 
         onProgress({
             phase: 3, status: 'running',

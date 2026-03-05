@@ -13,6 +13,7 @@ const pathManager = require('./pathManager')
 
 const BATCH_SIZE = 200
 const YIELD_THRESHOLD = 500 // Yield event loop every N entries
+const MAX_MANIFEST_FILES = 500000 // Prevent OOM crashes
 
 // ──────────────────────────────────────────────
 // Classification rules
@@ -143,6 +144,9 @@ async function walkDir(dirPath, parentNode, manifest, onFile, state) {
                     modified: stat.mtimeMs,
                 }
 
+                if (manifest.length >= MAX_MANIFEST_FILES) {
+                    throw new Error(`Out of Memory Protection: Scan limit of ${MAX_MANIFEST_FILES} files reached.`)
+                }
                 manifest.push(fileEntry)
                 parentNode.children.push({ ...fileEntry, type: 'file' })
                 parentNode.stats[category] = (parentNode.stats[category] || 0) + 1
