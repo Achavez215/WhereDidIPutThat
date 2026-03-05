@@ -25,3 +25,12 @@ Error occurred in handler for 'theme:get': Error: No handler registered for 'the
 Error occurred in handler for 'theme:get': Error: No handler registered for 'theme:get'
     at Session.<anonymous> (node:electron/js2c/browser_init:2:116772)
     at Session.emit (node:events:508:28)
+Error occurred in handler for 'theme:get': Error: No handler registered for 'theme:get'
+    at Session.<anonymous> (node:electron/js2c/browser_init:2:116772)
+    at Session.emit (node:events:508:28)
+Error occurred in handler for 'theme:get': Error: No handler registered for 'theme:get'
+    at Session.<anonymous> (node:electron/js2c/browser_init:2:116772)
+    at Session.emit (node:events:508:28)
+Error occurred in handler for 'theme:get': Error: No handler registered for 'theme:get'
+    at Session.<anonymous> (node:electron/js2c/browser_init:2:116772)
+    at Session.emit (node:events:508:28)

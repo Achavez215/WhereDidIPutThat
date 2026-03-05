@@ -1,6 +1,6 @@
 /**
  * phaseEngine.js
- * Manages the 6-phase state machine. Each phase must be manually triggered.
+ * Manages the 7-phase state machine. Each phase must be manually triggered.
  * Uses Copy → Verify → Delete for all file moves.
  */
 
@@ -17,36 +17,16 @@ const diskUtils = require('./diskUtils')
 const BATCH_SIZE = 50
 let _cancelled = false
 
-// ── Hash Helper ──────────────────────────────────────────────────────
+// ── Shared Helpers ──────────────────────────────────────────────────
+
 function hashFile(filePath) {
-    const hash = crypto.createHash('sha256')
-    const data = fs.readFileSync(filePath)
-    hash.update(data)
-    return hash.digest('hex')
-}
-
-/**
- * startPhase(phaseNumber, context, onProgress)
- *
- * context shape:
- *  {
- *    folderPaths: string[],         // Phase 1: folders to scan
- *    manifest: FileEntry[],         // Phase 2+: from Phase 1
- *    destinationMap: { category: dstFolder }, // Phase 4
- *    backupPath: string,            // Phase 5
- *  }
- */
-async function startPhase(phaseNumber, context, onProgress) {
-    _cancelled = false
-
-    switch (phaseNumber) {
-        case 1: return await phase1_scan(context, onProgress)
-        case 2: return await phase2_preview(context, onProgress)
-        case 3: return await phase3_backup(context, onProgress)
-        case 4: return await phase4_execute(context, onProgress)
-        case 5: return await phase5_validate(context, onProgress)
-        case 6: return await phase6_report(context, onProgress)
-        default: return { ok: false, error: `Unknown phase: ${phaseNumber}` }
+    try {
+        const hash = crypto.createHash('sha256')
+        const data = fs.readFileSync(filePath)
+        hash.update(data)
+        return hash.digest('hex')
+    } catch {
+        return null
     }
 }
 
@@ -72,7 +52,6 @@ async function phase2_preview(context, onProgress) {
     const { manifest, selectedDrive } = context
     const stats = fileScanner.buildStats(manifest)
 
-    // Heuristic-based recommendations
     const recommendations = []
     const baseDir = selectedDrive?.mountPath || 'C:\\'
 
@@ -88,7 +67,6 @@ async function phase2_preview(context, onProgress) {
         other: path.join(baseDir, 'Others')
     }
 
-    // Identify duplicates (simple name+size check for now, Phase 4 does hash)
     const duplicatePool = new Map()
     const duplicates = []
 
@@ -124,13 +102,11 @@ async function phase2_preview(context, onProgress) {
     return { ok: true, actionPlan }
 }
 
-// ── Phase 3: Backup Creation ───────────────────────────────────────
-async function phase3_backup(context, onProgress) {
-    // Delegate to backupManager — handled via IPC directly
-    // This phase just marks checkpoint
-    checkpointLogger.writeCheckpoint({ phase: 3, complete: true, backupPath: context.backupPath })
-    onProgress({ phase: 3, status: 'done', backupPath: context.backupPath })
-    return { ok: true, backupPath: context.backupPath }
+// ── Phase 3: Confirmation ──────────────────────────────────────────
+async function phase3_confirm(context, onProgress) {
+    onProgress({ phase: 3, status: 'done', message: 'Ready for execution' })
+    checkpointLogger.writeCheckpoint({ phase: 3, complete: true })
+    return { ok: true }
 }
 
 // ── Phase 4: Execution — Planned Moves ────────────────────────────
@@ -138,13 +114,10 @@ async function phase4_execute(context, onProgress) {
     const { plannedMoves } = context
     if (!plannedMoves || plannedMoves.length === 0) return { ok: false, error: 'No planned moves provided.' }
 
-    // ── Disk space pre-check ─────────────────────────────────────
     const totalBytes = plannedMoves.reduce((sum, move) => sum + (move.size || 0), 0)
     if (plannedMoves.length > 0) {
         const spaceCheck = diskUtils.checkDiskSpace(plannedMoves[0].dstPath, totalBytes)
-        if (!spaceCheck.ok) {
-            return { ok: false, error: spaceCheck.message }
-        }
+        if (!spaceCheck.ok) return { ok: false, error: spaceCheck.message }
     }
 
     performanceController.start(plannedMoves.length)
@@ -209,60 +182,9 @@ async function phase4_execute(context, onProgress) {
     }
 
     const success = !_cancelled
-    checkpointLogger.writeCheckpoint({ phase: 4, complete: true, processed, failed })
+    checkpointLogger.writeCheckpoint({ phase: 4, complete: true, processed, failed, movedFiles })
     onProgress({ phase: 4, status: _cancelled ? 'cancelled' : 'done', processed, failed, errors })
     return { ok: success, processed, failed, errors, movedFiles }
-}
-
-// ── Phase 7: Cleanup — Search for empty folders ──────────────────
-async function phase7_cleanup(context, onProgress) {
-    onProgress({ phase: 7, status: 'scanning', message: 'Scanning for empty folders…' })
-    const { folderPaths } = context
-    const emptyFolders = []
-
-    function findEmpty(dir) {
-        const entries = fs.readdirSync(dir, { withFileTypes: true })
-        if (entries.length === 0) {
-            emptyFolders.push(dir)
-            return true
-        }
-        let allSubEmpty = true
-        for (const entry of entries) {
-            if (entry.isDirectory()) {
-                const isSubEmpty = findEmpty(path.join(dir, entry.name))
-                if (!isSubEmpty) allSubEmpty = false
-            } else {
-                allSubEmpty = false
-            }
-        }
-        if (allSubEmpty && entries.length > 0) {
-            // All children are directories and all are empty
-            // This is handled by recursion above, but we can double check
-        }
-        return false
-    }
-
-    for (const folderPath of folderPaths) {
-        findEmpty(folderPath)
-    }
-
-    onProgress({ phase: 7, status: 'done', emptyFolders })
-    return { ok: true, emptyFolders }
-}
-
-async function deleteEmptyFolders(folders, onProgress) {
-    let deleted = 0
-    for (const folder of folders) {
-        try {
-            if (fs.existsSync(folder) && fs.readdirSync(folder).length === 0) {
-                fs.rmdirSync(folder)
-                deleted++
-            }
-        } catch (err) {
-            console.error(`Failed to delete folder ${folder}: ${err.message}`)
-        }
-    }
-    return { ok: true, deleted }
 }
 
 // ── Phase 5: Validation & Integrity Check ─────────────────────────
@@ -290,13 +212,59 @@ async function phase5_validate(context, onProgress) {
     return { ok: true, passed, missing }
 }
 
-// ── Update startPhase to include Phase 7 ──────────────────────────
+// ── Phase 6: Reporting ──────────────────────────────────────────────
+async function phase6_report(context, onProgress) {
+    onProgress({ phase: 6, status: 'generating', message: 'Generating final report…' })
+    const logs = auditLogger.getAll()
+    checkpointLogger.writeCheckpoint({ phase: 6, complete: true })
+    onProgress({ phase: 6, status: 'done', logs })
+    return { ok: true, logs }
+}
+
+// ── Phase 7: Cleanup — Search for empty folders ──────────────────
+async function phase7_cleanup(context, onProgress) {
+    onProgress({ phase: 7, status: 'scanning', message: 'Scanning for empty folders…' })
+    const { folderPaths } = context
+    const emptyFolders = []
+
+    function findEmpty(dir) {
+        try {
+            const entries = fs.readdirSync(dir, { withFileTypes: true })
+            if (entries.length === 0) {
+                emptyFolders.push(dir)
+                return true
+            }
+            let allSubEmpty = true
+            for (const entry of entries) {
+                if (entry.isDirectory()) {
+                    const isSubEmpty = findEmpty(path.join(dir, entry.name))
+                    if (!isSubEmpty) allSubEmpty = false
+                } else {
+                    allSubEmpty = false
+                }
+            }
+            return allSubEmpty
+        } catch {
+            return false
+        }
+    }
+
+    for (const folderPath of folderPaths) {
+        findEmpty(folderPath)
+    }
+
+    onProgress({ phase: 7, status: 'done', emptyFolders })
+    return { ok: true, emptyFolders }
+}
+
+// ── Entry points ────────────────────────────────────────────────────
+
 async function startPhase(phaseNumber, context, onProgress) {
     _cancelled = false
     switch (phaseNumber) {
         case 1: return await phase1_scan(context, onProgress)
         case 2: return await phase2_preview(context, onProgress)
-        case 3: return await phase3_confirm(context, onProgress) // NEW
+        case 3: return await phase3_confirm(context, onProgress)
         case 4: return await phase4_execute(context, onProgress)
         case 5: return await phase5_validate(context, onProgress)
         case 6: return await phase6_report(context, onProgress)
@@ -305,13 +273,21 @@ async function startPhase(phaseNumber, context, onProgress) {
     }
 }
 
-async function phase3_confirm(context, onProgress) {
-    onProgress({ phase: 3, status: 'done', message: 'Ready for execution' })
-    return { ok: true }
+function cancel() {
+    _cancelled = true
 }
 
 async function startCleanup(context) {
-    return await deleteEmptyFolders(context.folders)
+    let deleted = 0
+    for (const folder of context.folders || []) {
+        try {
+            if (fs.existsSync(folder) && fs.readdirSync(folder).length === 0) {
+                fs.rmdirSync(folder)
+                deleted++
+            }
+        } catch { }
+    }
+    return { ok: true, deleted }
 }
 
 module.exports = { startPhase, cancel, startCleanup }

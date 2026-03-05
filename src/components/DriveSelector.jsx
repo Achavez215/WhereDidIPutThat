@@ -8,92 +8,187 @@ function formatBytes(b) {
     return `${(b / Math.pow(k, i)).toFixed(1)} ${s[i]}`
 }
 
-function DriveCard({ drive, selected, onSelect }) {
-    const usedBytes = drive.totalBytes - drive.freeBytes
-    const usedPct = drive.totalBytes > 0 ? (usedBytes / drive.totalBytes) * 100 : 0
-
-    const icon = drive.isCloud ? '☁️' : drive.driveType === 2 ? '💾' : drive.isSystem ? '💻' : '🗄️'
-
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            onSelect()
-        }
-    }
+function StorageBar({ free, total }) {
+    const used = total - free
+    const pct = total > 0 ? (used / total) * 100 : 0
+    let variant = ''
+    if (pct > 90) variant = 'danger'
+    else if (pct > 75) variant = 'warning'
 
     return (
-        <div
-            className={`card drive-card ${selected ? 'selected' : ''} ${drive.isCloud ? 'warning' : ''}`}
-            onClick={onSelect}
-            onKeyDown={handleKeyDown}
-            tabIndex={0}
-            id={`drive-${drive.letter.replace(':', '')}`}
-            role="button"
-            aria-pressed={selected}
-            aria-label={`Drive ${drive.letter} — ${drive.label}${drive.isSystem ? ', System drive' : ''}${drive.isCloud ? ', Cloud drive' : ''}${drive.totalBytes > 0 ? `, ${formatBytes(drive.freeBytes)} free of ${formatBytes(drive.totalBytes)}` : ''}`}
-        >
-            {drive.isCloud && <span className="cloud-overlay" aria-hidden="true">☁</span>}
-            <div className="drive-icon" aria-hidden="true">{icon}</div>
-            <div className="drive-letter">{drive.letter}</div>
-            <div className="drive-label">{drive.label}</div>
-            <div className="drive-meta" aria-hidden="true">
-                <span className={`pill ${drive.isCloud ? 'cloud' : ''}`}>
-                    {drive.isCloud ? 'Cloud' : drive.typeLabel}
-                </span>
-                {drive.isSystem && <span className="pill system">System</span>}
+        <div className="storage-bar-container" aria-hidden="true">
+            <div className={`storage-bar-fill ${variant}`} style={{ width: `${pct}%` }} />
+        </div>
+    )
+}
+
+function DriveCardSecondary({ drive, selected, onSelect, onExpand, expanded, folders }) {
+    const icon = drive.isCloud ? '☁️' : drive.driveType === 2 ? '💾' : drive.isSystem ? '💻' : '🗄️'
+    const typeClass = drive.isCloud ? 'cloud' : drive.driveType === 2 ? 'removable' : drive.driveType === 4 ? 'network' : ''
+
+    return (
+        <div className={`drive-card-secondary ${selected ? 'selected' : ''} ${typeClass}`}>
+            <div className="flex flex-between items-center mb-2" onClick={onSelect} style={{ cursor: 'pointer' }}>
+                <div className="flex items-center gap-2">
+                    <span style={{ fontSize: 20 }}>{icon}</span>
+                    <span style={{ fontWeight: 600, fontSize: 14 }}>{drive.label} ({drive.letter})</span>
+                </div>
+                <div className="health-indicator">
+                    <div className={`health-dot ${drive.status === 'OK' ? 'ok' : 'warn'}`} />
+                    {drive.status === 'OK' ? 'Healthy' : drive.status}
+                </div>
             </div>
-            {drive.totalBytes > 0 && (
-                <div className="drive-storage mt-4" aria-hidden="true">
-                    <div className="drive-storage-text">
-                        {formatBytes(drive.freeBytes)} free of {formatBytes(drive.totalBytes)}
-                    </div>
-                    <div className="drive-storage-bar mt-2">
-                        <div className="drive-storage-bar-fill" style={{ width: `${usedPct}%` }} />
-                    </div>
+
+            <div className="drive-meta flex gap-2 mb-2" onClick={onSelect}>
+                <span className="info-tag" style={{ fontSize: 9 }}>{drive.typeLabel}</span>
+                <span className="info-tag" style={{ fontSize: 9 }}>{drive.fileSystem}</span>
+                {drive.isSystem && <span className="info-tag system" style={{ fontSize: 9 }}>System</span>}
+            </div>
+
+            <StorageBar free={drive.freeBytes} total={drive.totalBytes} />
+
+            <div className="flex flex-between text-muted" style={{ fontSize: 11 }}>
+                <span>{formatBytes(drive.freeBytes)} free</span>
+                <span>{formatBytes(drive.totalBytes)}</span>
+            </div>
+
+            <button
+                className="btn btn-ghost btn-xs w-full mt-3"
+                onClick={(e) => { e.stopPropagation(); onExpand(); }}
+                aria-expanded={expanded}
+            >
+                {expanded ? '▲ Hide Folders' : '▼ Preview Folders'}
+            </button>
+
+            {expanded && (
+                <div className={`folders-preview expanded`}>
+                    {folders === null ? (
+                        <div className="p-2 text-center">Loading...</div>
+                    ) : folders.length === 0 ? (
+                        <div className="p-2 text-center">No folders found</div>
+                    ) : (
+                        folders.map(f => (
+                            <div key={f.fullPath} className="preview-item">
+                                📁 {f.name}
+                            </div>
+                        ))
+                    )}
                 </div>
             )}
         </div>
     )
 }
 
+function ThisPCCard({ data, selected, onSelect }) {
+    return (
+        <div className={`drive-card-primary ${selected ? 'selected' : ''}`} onClick={onSelect}>
+            <div className="icon-main">🖥️</div>
+            <div style={{ flex: 1 }}>
+                <div className="flex flex-between items-center mb-1">
+                    <h3 style={{ margin: 0, fontSize: 20 }}>This PC</h3>
+                    <div className="badge accent">UNIFIED SYSTEM SCAN</div>
+                </div>
+                <p className="text-muted mb-4" style={{ fontSize: 13 }}>
+                    Analyze all <strong>{data?.driveCount || 0}</strong> connected drives simultaneously.
+                </p>
+                <div style={{ maxWidth: 400 }}>
+                    <StorageBar free={data?.freeBytes || 0} total={data?.totalBytes || 0} />
+                    <div className="flex flex-between text-muted" style={{ fontSize: 12 }}>
+                        <span>Collective: {formatBytes(data?.freeBytes || 0)} free of {formatBytes(data?.totalBytes || 0)}</span>
+                    </div>
+                </div>
+            </div>
+            <div className="flex flex-column gap-2 items-end">
+                <button className={`btn ${selected ? 'btn-primary' : 'btn-ghost'}`}>
+                    {selected ? 'Selected ✓' : 'Select This PC'}
+                </button>
+            </div>
+        </div>
+    )
+}
+
 export default function DriveSelector() {
-    const { drives, selectedDrive, setDrives, selectDrive, setStep, setTopLevelFolders } = useAppStore()
+    const {
+        drives, thisPC, selectedDrives, isScanningAll, setDrives,
+        toggleDrive, setThisPCSelected, setStep, setTopLevelFolders
+    } = useAppStore()
+
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
     const [cloudConfirm, setCloudConfirm] = useState(null)
+    const [expandedDrive, setExpandedDrive] = useState(null)
+    const [driveFolders, setDriveFolders] = useState({})
+    const [scanType, setScanType] = useState('quick') // 'quick' | 'deep'
 
     useEffect(() => {
         setLoading(true)
         window.api.listDrives().then(res => {
-            if (res.ok) setDrives(res.drives)
+            if (res.ok) setDrives({ drives: res.drives, thisPC: res.thisPC })
             else setError(res.error)
             setLoading(false)
         })
     }, [])
 
-    const handleSelect = (drive) => {
-        if (drive.isCloud && selectedDrive?.letter !== drive.letter) {
+    const handleExpand = async (drive) => {
+        if (expandedDrive === drive.letter) {
+            setExpandedDrive(null)
+            return
+        }
+        setExpandedDrive(drive.letter)
+        if (!driveFolders[drive.letter]) {
+            const res = await window.api.listTopLevelFolders(drive.mountPath)
+            if (res.ok) {
+                setDriveFolders(prev => ({ ...prev, [drive.letter]: res.folders }))
+            }
+        }
+    }
+
+    const handleSelectDrive = (drive) => {
+        if (drive.isCloud && !selectedDrives.find(d => d.letter === drive.letter)) {
             setCloudConfirm(drive)
             return
         }
-        confirmSelect(drive)
+        toggleDrive(drive)
     }
 
-    const confirmSelect = async (drive) => {
+    const confirmCloudSelect = (drive) => {
+        toggleDrive(drive)
         setCloudConfirm(null)
-        selectDrive(drive)
-        const res = await window.api.listTopLevelFolders(drive.mountPath)
-        if (res.ok) setTopLevelFolders(res.folders)
     }
 
-    const canContinue = !!selectedDrive
+    const handleContinue = async () => {
+        if (isScanningAll) {
+            // In "This PC" mode, we might scan everything or proceed to folder selection for all
+            // For now, let's aggregate and proceed
+            const allFolders = []
+            for (const drive of drives) {
+                const res = await window.api.listTopLevelFolders(drive.mountPath)
+                if (res.ok) allFolders.push(...res.folders)
+            }
+            setTopLevelFolders(allFolders)
+        } else if (selectedDrives.length === 1) {
+            const res = await window.api.listTopLevelFolders(selectedDrives[0].mountPath)
+            if (res.ok) setTopLevelFolders(res.folders)
+        } else if (selectedDrives.length > 0) {
+            const paths = selectedDrives.map(d => d.mountPath)
+            const allFolders = []
+            for (const path of paths) {
+                const res = await window.api.listTopLevelFolders(path)
+                if (res.ok) allFolders.push(...res.folders)
+            }
+            setTopLevelFolders(allFolders)
+        }
+        setStep('folders')
+    }
+
+    const canContinue = selectedDrives.length > 0 || isScanningAll
 
     return (
         <div>
             <div className="section-header">
                 <div className="sub">Step 1 of 6</div>
-                <h2>Select a Drive</h2>
-                <p>Choose which drive to organize. Only one drive can be active per session. Cloud drives require explicit selection.</p>
+                <h2>Drive Discovery & Selection</h2>
+                <p>Choose where to look. Select individual drives or scan the entire system.</p>
             </div>
 
             {loading && (
@@ -103,32 +198,56 @@ export default function DriveSelector() {
                 <div className="alert alert-error"><span className="alert-icon">⚠️</span> {error}</div>
             )}
 
-            <div className="alert alert-warn">
-                <span className="alert-icon">🛡️</span>
-                <span>System directories (Windows, Program Files, AppData, etc.) are always protected and will never be modified regardless of selection.</span>
+            <div className="mb-6">
+                <ThisPCCard
+                    data={thisPC}
+                    selected={isScanningAll}
+                    onSelect={() => setThisPCSelected(!isScanningAll)}
+                />
             </div>
 
-            <div className="grid-auto mb-6">
+            {isScanningAll && (
+                <div className="alert scan-warning-box mb-6">
+                    <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                        <span style={{ fontSize: 24 }}>🛡️</span>
+                        <div style={{ flex: 1 }}>
+                            <h4 style={{ margin: 0, color: 'var(--accent-amber)' }}>Full System Scan Mode</h4>
+                            <p style={{ fontSize: 12, margin: '4px 0 0' }}>
+                                Scanning all drives will take significantly longer. System-critical directories remain protected by default.
+                            </p>
+                        </div>
+                        <div className="flex gap-2">
+                            <button
+                                className={`btn btn-sm ${scanType === 'quick' ? 'btn-amber' : 'btn-ghost'}`}
+                                onClick={() => setScanType('quick')}
+                            >Quick Scan</button>
+                            <button
+                                className={`btn btn-sm ${scanType === 'deep' ? 'btn-amber' : 'btn-ghost'}`}
+                                onClick={() => setScanType('deep')}
+                            >Deep Scan</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <div className="drive-grid">
                 {drives.map(drive => (
-                    <DriveCard
+                    <DriveCardSecondary
                         key={drive.letter}
                         drive={drive}
-                        selected={selectedDrive?.letter === drive.letter}
-                        onSelect={() => handleSelect(drive)}
+                        selected={selectedDrives.some(d => d.letter === drive.letter)}
+                        onSelect={() => handleSelectDrive(drive)}
+                        onExpand={() => handleExpand(drive)}
+                        expanded={expandedDrive === drive.letter}
+                        folders={driveFolders[drive.letter] || null}
                     />
                 ))}
-                {!loading && drives.length === 0 && (
-                    <div className="empty-state">
-                        <div className="empty-icon">💽</div>
-                        <p>No drives detected.</p>
-                    </div>
-                )}
             </div>
 
-            {selectedDrive && (
-                <div className="alert alert-info">
-                    <span className="alert-icon">✅</span>
-                    <span>Selected: <strong>{selectedDrive.letter}</strong> — {selectedDrive.label}</span>
+            {!loading && drives.length === 0 && (
+                <div className="empty-state">
+                    <div className="empty-icon">💽</div>
+                    <p>No drives detected.</p>
                 </div>
             )}
 
@@ -136,14 +255,13 @@ export default function DriveSelector() {
                 <button
                     className="btn btn-primary btn-lg"
                     disabled={!canContinue}
-                    onClick={() => setStep('folders')}
+                    onClick={handleContinue}
                     id="btn-continue-to-folders"
                 >
-                    Choose Folders →
+                    Confirm Selection & Continue →
                 </button>
             </div>
 
-            {/* Cloud confirmation modal */}
             {cloudConfirm && (
                 <div className="modal-overlay">
                     <div className="modal">
@@ -155,7 +273,7 @@ export default function DriveSelector() {
                         </p>
                         <div className="modal-actions">
                             <button className="btn btn-ghost" onClick={() => setCloudConfirm(null)}>Cancel</button>
-                            <button className="btn btn-amber" onClick={() => confirmSelect(cloudConfirm)} id="btn-confirm-cloud">
+                            <button className="btn btn-amber" onClick={() => confirmCloudSelect(cloudConfirm)} id="btn-confirm-cloud">
                                 Yes, Use Cloud Drive
                             </button>
                         </div>

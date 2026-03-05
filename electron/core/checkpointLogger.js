@@ -10,29 +10,18 @@ const pathManager = require('./pathManager')
 
 const CHECKPOINT_FILE = pathManager.getCheckpointFile()
 
-function ensureDir() {
-    // pathManager handles dir creation in getCheckpointFile()
-}
-
-/**
- * writeCheckpoint(data) — Merges data into the existing checkpoint.
- * Called at the END of each successful phase / batch.
- */
 function writeCheckpoint(data) {
-    ensureDir()
     const existing = readCheckpoint() || {}
     const updated = {
         ...existing,
         ...data,
         updatedAt: new Date().toISOString(),
     }
+    const dir = path.dirname(CHECKPOINT_FILE)
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
     fs.writeFileSync(CHECKPOINT_FILE, JSON.stringify(updated, null, 2), 'utf8')
 }
 
-/**
- * readCheckpoint() → object | null
- * Returns the checkpoint data, or null if none exists.
- */
 function readCheckpoint() {
     try {
         if (!fs.existsSync(CHECKPOINT_FILE)) return null
@@ -43,9 +32,6 @@ function readCheckpoint() {
     }
 }
 
-/**
- * clearCheckpoint() — Removes the checkpoint file after a clean run.
- */
 function clearCheckpoint() {
     try {
         if (fs.existsSync(CHECKPOINT_FILE)) {

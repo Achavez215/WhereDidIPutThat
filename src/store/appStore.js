@@ -12,12 +12,34 @@ const PHASES = [
 export const useAppStore = create((set, get) => ({
     // ── Drive & Folder Selection ──────────────────────────────
     drives: [],
-    selectedDrive: null,
+    thisPC: null,
+    selectedDrives: [],
+    isScanningAll: false,
     topLevelFolders: [],
     selectedFolders: [],
 
-    setDrives: (drives) => set({ drives }),
-    selectDrive: (drive) => set({ selectedDrive: drive, selectedFolders: [], topLevelFolders: [], manifest: null }),
+    setDrives: ({ drives, thisPC }) => set({ drives, thisPC }),
+    toggleDrive: (drive) => set(s => {
+        const isSelected = s.selectedDrives.find(d => d.letter === drive.letter)
+        const nextDrives = isSelected
+            ? s.selectedDrives.filter(d => d.letter !== drive.letter)
+            : [...s.selectedDrives, drive]
+
+        return {
+            selectedDrives: nextDrives,
+            isScanningAll: false,
+            selectedFolders: [],
+            topLevelFolders: [],
+            manifest: null
+        }
+    }),
+    setThisPCSelected: (selected) => set(s => ({
+        isScanningAll: selected,
+        selectedDrives: selected ? s.drives : [],
+        selectedFolders: [],
+        topLevelFolders: [],
+        manifest: null
+    })),
     setTopLevelFolders: (folders) => set({ topLevelFolders: folders }),
     toggleFolder: (folder) => {
         const { selectedFolders } = get()
@@ -95,6 +117,24 @@ export const useAppStore = create((set, get) => ({
         } else {
             await window.api.pausePhase()
             set({ isPaused: true })
+        }
+    },
+    refreshFolders: async (drivePaths) => {
+        const paths = Array.isArray(drivePaths) ? drivePaths : [drivePaths]
+        set({ folderLoading: true, topLevelFolders: [], selectedFolders: [] })
+
+        try {
+            const allFolders = []
+            for (const dp of paths) {
+                const folders = await window.api.listTopLevelFolders(dp)
+                // Tag each folder with its source drive for the UI
+                const tagged = folders.map(f => ({ ...f, drivePath: dp }))
+                allFolders.push(...tagged)
+            }
+            set({ topLevelFolders: allFolders, folderLoading: false })
+        } catch (err) {
+            console.error('Failed to list folders:', err)
+            set({ folderLoading: false })
         }
     },
 

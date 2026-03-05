@@ -19,18 +19,20 @@ function isCloudPath(label = '', mountPath = '') {
 function listDrives() {
     try {
         const raw = execSync(
-            'wmic logicaldisk get DeviceID,DriveType,FreeSpace,Size,VolumeName /format:csv',
+            'wmic logicaldisk get DeviceID,DriveType,FreeSpace,Size,VolumeName,FileSystem,Status /format:csv',
             { encoding: 'utf8', timeout: 8000 }
         )
 
         const lines = raw.split('\n').filter(l => l.trim() && !l.startsWith('Node'))
         const drives = []
+        let totalSystemSize = 0
+        let totalSystemFree = 0
 
         for (const line of lines) {
             const parts = line.trim().split(',')
-            if (parts.length < 6) continue
-            // CSV columns: Node, DeviceID, DriveType, FreeSpace, Size, VolumeName
-            const [, deviceId, driveType, freeSpace, size, volumeName] = parts
+            if (parts.length < 8) continue
+            // CSV columns: Node, DeviceID, DriveType, FileSystem, FreeSpace, Size, Status, VolumeName
+            const [, deviceId, driveType, fileSystem, freeSpace, size, status, volumeName] = parts
 
             if (!deviceId || !deviceId.includes(':')) continue
 
@@ -45,7 +47,7 @@ function listDrives() {
             const freeBytes = parseInt(freeSpace, 10) || 0
             const totalBytes = parseInt(size, 10) || 0
 
-            drives.push({
+            const driveObj = {
                 letter,
                 mountPath,
                 label,
@@ -55,14 +57,31 @@ function listDrives() {
                 isSystem: letter === 'C:',
                 freeBytes,
                 totalBytes,
+                fileSystem: fileSystem || 'Unknown',
+                status: status || 'OK',
                 freeFormatted: formatBytes(freeBytes),
                 totalFormatted: formatBytes(totalBytes),
-            })
+            }
+
+            drives.push(driveObj)
+
+            // Aggregate for "This PC"
+            totalSystemSize += totalBytes
+            totalSystemFree += freeBytes
         }
 
-        return { ok: true, drives }
+        const thisPC = {
+            label: 'This PC',
+            totalBytes: totalSystemSize,
+            freeBytes: totalSystemFree,
+            totalFormatted: formatBytes(totalSystemSize),
+            freeFormatted: formatBytes(totalSystemFree),
+            driveCount: drives.length
+        }
+
+        return { ok: true, drives, thisPC }
     } catch (err) {
-        return { ok: false, error: err.message, drives: [] }
+        return { ok: false, error: err.message, drives: [], thisPC: null }
     }
 }
 
@@ -86,15 +105,18 @@ function listTopLevelFolders(drivePath) {
             entries.push({ name: entry.name, fullPath, isUserFolder: false })
         }
 
-        // Also surface common user folders from USERPROFILE
-        for (const folderName of COMMON_USER_FOLDERS) {
-            const fullPath = path.join(userHome, folderName)
-            if (fs.existsSync(fullPath) && !safetyGuard.isProtected(fullPath)) {
-                const already = entries.find(e => e.fullPath === fullPath)
-                if (!already) {
-                    entries.push({ name: folderName, fullPath, isUserFolder: true })
-                } else {
-                    already.isUserFolder = true
+        // Also surface common user folders from USERPROFILE if we are on the system drive
+        const isSystemDrive = drivePath.toLowerCase().startsWith('c:')
+        if (isSystemDrive) {
+            for (const folderName of COMMON_USER_FOLDERS) {
+                const fullPath = path.join(userHome, folderName)
+                if (fs.existsSync(fullPath) && !safetyGuard.isProtected(fullPath)) {
+                    const already = entries.find(e => e.fullPath.toLowerCase() === fullPath.toLowerCase())
+                    if (!already) {
+                        entries.push({ name: folderName, fullPath, isUserFolder: true })
+                    } else {
+                        already.isUserFolder = true
+                    }
                 }
             }
         }

@@ -32,7 +32,10 @@ function CheckRow({ folder, checked, onToggle }) {
             </div>
             <span style={{ fontSize: 16 }} aria-hidden="true">{icon}</span>
             <span className="checkbox-label">{folder.name}</span>
-            <span className="checkbox-sub mono" aria-hidden="true">{folder.fullPath}</span>
+            <div className="flex flex-col">
+                <span className="checkbox-sub mono" aria-hidden="true">{folder.fullPath}</span>
+                {folder.drivePath && <span className="drive-tag" style={{ fontSize: '9px', opacity: 0.6 }}>Drive: {folder.drivePath}</span>}
+            </div>
         </div>
     )
 }
