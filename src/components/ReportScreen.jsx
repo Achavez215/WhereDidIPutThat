@@ -19,49 +19,91 @@ export default function ReportScreen() {
 
     return (
         <div>
-            <div className="section-header">
-                <div className="sub">Complete</div>
-                <h2>✅ Organization Complete</h2>
+            <div className="section-header" role="region" aria-labelledby="report-title">
+                <div className="sub" aria-hidden="true">Complete</div>
+                <h2 id="report-title">✅ Organization Complete</h2>
                 <p>The phased execution has finished. Review the results below and manage your backup.</p>
             </div>
 
             {/* Tab switcher */}
-            <div className="flex gap-2 mb-6">
+            <div className="flex gap-2 mb-6" role="tablist" aria-label="Report views">
                 <button
                     className={`btn btn-sm ${tab === 'summary' ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => setTab('summary')} id="tab-summary"
-                >📊 Summary</button>
+                    onClick={() => setTab('summary')}
+                    id="tab-summary"
+                    role="tab"
+                    aria-selected={tab === 'summary'}
+                    aria-controls="tabpanel-summary"
+                ><span aria-hidden="true">📊</span> Summary</button>
                 <button
                     className={`btn btn-sm ${tab === 'log' ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => setTab('log')} id="tab-log"
-                >📋 Full Log</button>
+                    onClick={() => setTab('log')}
+                    id="tab-log"
+                    role="tab"
+                    aria-selected={tab === 'log'}
+                    aria-controls="tabpanel-log"
+                ><span aria-hidden="true">📋</span> Full Log</button>
             </div>
 
             {tab === 'summary' && (
-                <>
+                <div
+                    id="tabpanel-summary"
+                    role="tabpanel"
+                    aria-labelledby="tab-summary"
+                    aria-live="polite"
+                >
                     {report ? (
-                        <div className="report-grid mb-6">
-                            <div className="report-stat green">
-                                <div className="report-stat-value">{(report.moved || 0).toLocaleString()}</div>
-                                <div className="report-stat-label">Files Moved</div>
+                        <>
+                            <div className="report-grid mb-6">
+                                <div className="report-stat green" aria-label={`${report.moved} files moved successfully`}>
+                                    <div className="report-stat-value">{(report.moved || 0).toLocaleString()}</div>
+                                    <div className="report-stat-label">Files Moved</div>
+                                </div>
+                                <div className="report-stat red" aria-label={`${report.errors} files encountered errors`}>
+                                    <div className="report-stat-value">{(report.errors || 0).toLocaleString()}</div>
+                                    <div className="report-stat-label">Errors</div>
+                                </div>
+                                <div className="report-stat amber" aria-label={`${report.blocked} files were blocked by safety guard`}>
+                                    <div className="report-stat-value">{(report.blocked || 0).toLocaleString()}</div>
+                                    <div className="report-stat-label">Blocked</div>
+                                </div>
+                                <div className="report-stat muted" aria-label={`${report.skipped} files were skipped`}>
+                                    <div className="report-stat-value">{(report.skipped || 0).toLocaleString()}</div>
+                                    <div className="report-stat-label">Skipped</div>
+                                </div>
                             </div>
-                            <div className="report-stat red">
-                                <div className="report-stat-value">{(report.errors || 0).toLocaleString()}</div>
-                                <div className="report-stat-label">Errors</div>
-                            </div>
-                            <div className="report-stat amber">
-                                <div className="report-stat-value">{(report.blocked || 0).toLocaleString()}</div>
-                                <div className="report-stat-label">Blocked</div>
-                            </div>
-                            <div className="report-stat muted">
-                                <div className="report-stat-value">{(report.skipped || 0).toLocaleString()}</div>
-                                <div className="report-stat-label">Skipped</div>
-                            </div>
-                        </div>
+
+                            {/* Error Details Section (Low-priority compliance item) */}
+                            {report.errorDetails?.length > 0 && (
+                                <div className="card mb-6" style={{ borderColor: 'var(--accent-red)' }}>
+                                    <h3 style={{ marginBottom: 12, fontSize: 14, fontWeight: 600 }}>
+                                        <span aria-hidden="true">❌</span> Failed Items
+                                    </h3>
+                                    <div className="log-table-wrap">
+                                        <table className="log-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>File</th>
+                                                    <th>Error</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {report.errorDetails.map((err, i) => (
+                                                    <tr key={i}>
+                                                        <td className="mono">{err.file}</td>
+                                                        <td className="text-red">{err.message}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+                        </>
                     ) : (
-                        <div className="alert alert-warn mb-6">
-                            <span className="alert-icon">⚠️</span>
-                            <span>No report data available. Phase 6 may not have completed.</span>
+                        <div className="alert alert-warn mb-6" role="alert">
+                            <span className="alert-icon" aria-hidden="true">⚠️</span>
+                            <span>No report data available. Phased execution may not have completed.</span>
                         </div>
                     )}
 
@@ -118,14 +160,22 @@ export default function ReportScreen() {
                         <button className="btn btn-ghost" onClick={() => window.api.exportReport('json')} id="btn-report-export-json">
                             ⬇️ Export JSON Report
                         </button>
-                        <button className="btn btn-ghost" onClick={() => window.api.exportReport('csv')} id="btn-report-export-csv">
+                        <button className="btn btn-ghost" onClick={() => window.api.exportReport('csv')} id="btn-report-export-csv" aria-label="Export report as CSV">
                             ⬇️ Export CSV Report
                         </button>
                     </div>
-                </>
+                </div>
             )}
 
-            {tab === 'log' && <AuditLog />}
+            {tab === 'log' && (
+                <div
+                    id="tabpanel-log"
+                    role="tabpanel"
+                    aria-labelledby="tab-log"
+                >
+                    <AuditLog />
+                </div>
+            )}
         </div>
     )
 }

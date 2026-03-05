@@ -9,7 +9,7 @@
 
 'use strict'
 
-const { app, BrowserWindow, ipcMain, dialog, session } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, session, nativeTheme } = require('electron')
 const path = require('path')
 
 // Dev mode detection: env var set by npm scripts, or running from source (not asar)
@@ -24,6 +24,7 @@ const checkpointLogger = require('./core/checkpointLogger')
 const auditLogger = require('./core/auditLogger')
 const performanceController = require('./core/performanceController')
 const settingsManager = require('./core/settingsManager')
+const diskUtils = require('./core/diskUtils')
 
 let mainWindow = null
 
@@ -127,6 +128,15 @@ app.whenReady().then(() => {
     })
 
     createWindow()
+
+    // ── OS Theme: expose to renderer ─────────────────────────────
+    ipcMain.handle('theme:get', () => nativeTheme.shouldUseDarkColors)
+    nativeTheme.on('updated', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('theme:changed', nativeTheme.shouldUseDarkColors)
+        }
+    })
+
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow()
     })
@@ -229,6 +239,14 @@ ipcMain.handle('perf:getStats', () => performanceController.getStats())
 ipcMain.handle('settings:getAll', () => settingsManager.getAll())
 ipcMain.handle('settings:update', (_, newSettings) => settingsManager.update(newSettings))
 ipcMain.handle('settings:get', (_, key) => settingsManager.get(key))
+
+// ──────────────────────────────────────────────
+// IPC Handlers — Disk Space
+// ──────────────────────────────────────────────
+
+ipcMain.handle('disk:checkSpace', (_, targetPath, requiredBytes) =>
+    diskUtils.checkDiskSpace(targetPath, requiredBytes)
+)
 
 // ──────────────────────────────────────────────
 // IPC Handlers — Duplicate Detection

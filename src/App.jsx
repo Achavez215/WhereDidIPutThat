@@ -23,7 +23,7 @@ const STEP_INDICES = { drive: 0, folders: 1, mapping: 2, phases: 3, report: 4 }
 export default function App() {
     const { view, setView, step, setStep, checkpoint, setCheckpoint, dismissCheckpoint } = useAppStore()
 
-    // On launch: check for an unfinished checkpoint and settings
+    // On launch: check for an unfinished checkpoint, load settings, and sync OS theme
     useEffect(() => {
         window.api.checkCheckpoint().then(cp => {
             if (cp && cp.phase && cp.phase < 6) {
@@ -36,6 +36,20 @@ export default function App() {
                 setStep('drive')
             }
         })
+
+        // Sync OS dark/light mode on first launch
+        if (window.api.getSystemTheme) {
+            window.api.getSystemTheme().then(isDark => {
+                document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light')
+            }).catch(() => { })
+        }
+
+        // Listen for OS theme changes in real time
+        if (window.api.onThemeChanged) {
+            window.api.onThemeChanged((isDark) => {
+                document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light')
+            })
+        }
     }, [])
 
     const currentStepIndex = STEP_INDICES[step] ?? 0
@@ -47,77 +61,98 @@ export default function App() {
             <UpdateBanner />
             {/* ── Title bar ── */}
             <header className="app-header">
-                <img src="/logo.png" className="logo-img" alt="logo" style={{ height: '32px', width: '32px', borderRadius: '6px' }} />
+                <img src="/logo.png" className="logo-img" alt="WhereDidIPutThat logo" style={{ height: '32px', width: '32px', borderRadius: '6px' }} />
                 <h1 style={{ marginLeft: '12px' }}>WhereDidIPutThat</h1>
-                <span className="badge">SAFE MODE</span>
+                <span className="badge" aria-label="Safe Mode is active">SAFE MODE</span>
                 <div className="spacer" />
-                <div className="local-badge">LOCAL ONLY — NO CLOUD</div>
+                <div className="local-badge" aria-label="This app is local only — no cloud sync">
+                    LOCAL ONLY — NO CLOUD
+                </div>
             </header>
 
             <div className="app-body">
                 {/* ── Sidebar ── */}
-                <aside className="sidebar">
+                <nav className="sidebar" aria-label="Organizer workflow steps">
                     {STEPS.map((s, i) => (
                         <div
                             key={s.key}
                             className={`sidebar-step ${isStepActive(s.key) ? 'active' : ''} ${isStepDone(s.key) ? 'complete' : ''}`}
+                            aria-current={isStepActive(s.key) ? 'step' : undefined}
+                            aria-label={`Step ${i + 1}: ${s.label}${isStepDone(s.key) ? ' — completed' : isStepActive(s.key) ? ' — current' : ''}`}
+                            role="listitem"
                         >
-                            <div className="step-num">
+                            <div className="step-num" aria-hidden="true">
                                 {isStepDone(s.key) ? '✓' : i + 1}
                             </div>
-                            <div className="step-label">{s.icon} {s.label}</div>
+                            <div className="step-label">
+                                <span aria-hidden="true">{s.icon}</span>{' '}{s.label}
+                            </div>
                         </div>
                     ))}
 
                     <div style={{ flex: 1 }} />
 
                     {/* Nav Footer */}
-                    <div style={{ padding: 'var(--sp-4) 0', borderTop: '1px solid var(--border)', marginTop: 'auto' }}>
+                    <div
+                        style={{ padding: 'var(--sp-4) 0', borderTop: '1px solid var(--border)', marginTop: 'auto' }}
+                        role="group"
+                        aria-label="App navigation"
+                    >
                         <button
                             className={`btn w-full flex mb-2 ${view === 'organizer' ? 'btn-active-lite' : 'btn-ghost'}`}
                             style={{ justifyContent: 'flex-start', border: view === 'organizer' ? '1px solid var(--accent-teal)' : '1px solid transparent', background: view === 'organizer' ? 'rgba(56,189,248,0.05)' : 'transparent' }}
                             onClick={() => setView('organizer')}
+                            aria-pressed={view === 'organizer'}
+                            aria-label="Go to Organizer"
                         >
-                            <span>🧭</span> Organizer
+                            <span aria-hidden="true">🧭</span> Organizer
                         </button>
                         <button
                             className={`btn w-full flex mb-2 ${view === 'settings' ? 'btn-active-lite' : 'btn-ghost'}`}
                             style={{ justifyContent: 'flex-start', border: view === 'settings' ? '1px solid var(--accent-teal)' : '1px solid transparent', background: view === 'settings' ? 'rgba(56,189,248,0.05)' : 'transparent' }}
                             onClick={() => setView('settings')}
+                            aria-pressed={view === 'settings'}
+                            aria-label="Go to Settings"
                         >
-                            <span>⚙️</span> Settings
+                            <span aria-hidden="true">⚙️</span> Settings
                         </button>
                         <button
                             className={`btn w-full flex mb-4 ${view === 'help' ? 'btn-active-lite' : 'btn-ghost'}`}
                             style={{ justifyContent: 'flex-start', border: view === 'help' ? '1px solid var(--accent-teal)' : '1px solid transparent', background: view === 'help' ? 'rgba(56,189,248,0.05)' : 'transparent' }}
                             onClick={() => setView('help')}
+                            aria-pressed={view === 'help'}
+                            aria-label="Go to Help and Q&A"
                         >
-                            <span>📖</span> Help & Q&A
+                            <span aria-hidden="true">📖</span> Help &amp; Q&amp;A
                         </button>
 
                         {/* Protection status */}
-                        <div style={{
-                            padding: '12px',
-                            borderRadius: '8px',
-                            background: 'rgba(52,211,153,0.05)',
-                            border: '1px solid rgba(52,211,153,0.15)',
-                            fontSize: '10px',
-                            color: 'var(--text-muted)',
-                            lineHeight: '1.6',
-                        }}>
+                        <div
+                            role="status"
+                            aria-live="polite"
+                            style={{
+                                padding: '12px',
+                                borderRadius: '8px',
+                                background: 'rgba(52,211,153,0.05)',
+                                border: '1px solid rgba(52,211,153,0.15)',
+                                fontSize: '10px',
+                                color: 'var(--text-muted)',
+                                lineHeight: '1.6',
+                            }}
+                        >
                             <div style={{ color: 'var(--accent-green)', fontWeight: 600, marginBottom: '4px' }}>
-                                🛡️ Safety Mode Active
+                                <span aria-hidden="true">🛡️</span> Safety Mode Active
                             </div>
                         </div>
                     </div>
-                </aside>
+                </nav>
 
                 {/* ── Main content ── */}
-                <main className="main-content">
+                <main className="main-content" id="main-content" aria-label="Main content area">
                     {/* Checkpoint resume banner */}
                     {checkpoint && (
-                        <div className="checkpoint-banner">
-                            <span className="text-amber">⚡</span>
+                        <div className="checkpoint-banner" role="alert" aria-live="assertive">
+                            <span aria-hidden="true">⚡</span>
                             <div>
                                 <div style={{ fontWeight: 600, fontSize: 13 }}>Unfinished Run Detected</div>
                                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
@@ -129,6 +164,7 @@ export default function App() {
                                 className="btn btn-amber btn-sm"
                                 onClick={() => { setStep('phases'); dismissCheckpoint() }}
                                 id="btn-resume-checkpoint"
+                                aria-label="Resume from last checkpoint at Phase ${checkpoint.phase}"
                             >
                                 Resume
                             </button>
@@ -139,6 +175,7 @@ export default function App() {
                                     dismissCheckpoint()
                                 }}
                                 id="btn-dismiss-checkpoint"
+                                aria-label="Dismiss checkpoint and start a fresh session"
                             >
                                 Start Fresh
                             </button>

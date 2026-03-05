@@ -10,9 +10,16 @@ const PHASE_META = [
     { num: 6, title: 'Final Report', desc: 'Generate a complete audit log and summary of all actions taken.', icon: '📋' },
 ]
 
-function ProgressBar({ percent }) {
+function ProgressBar({ percent, label }) {
     return (
-        <div className="progress-bar-wrap mt-4">
+        <div
+            className="progress-bar-wrap mt-4"
+            role="progressbar"
+            aria-valuenow={Math.min(100, percent || 0)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={label || 'Phase progress'}
+        >
             <div className="progress-bar-fill" style={{ width: `${Math.min(100, percent || 0)}%` }} />
         </div>
     )
@@ -143,26 +150,31 @@ export default function PhasePanel() {
                     const isError = status === 'error'
 
                     return (
-                        <div key={num} className={getCardClass(num)}>
+                        <div
+                            key={num}
+                            className={getCardClass(num)}
+                            aria-disabled={!isPhaseUnlocked(num)}
+                            aria-label={`Phase ${num}: ${title} — ${isDone ? 'completed' : isActive ? 'running' : isError ? 'error' : !isPhaseUnlocked(num) ? 'locked' : 'ready'}`}
+                        >
                             <div className="phase-header">
-                                <div className="phase-number">
+                                <div className="phase-number" aria-hidden="true">
                                     {isDone ? '✓' : num}
                                 </div>
                                 <div>
-                                    <div className="phase-title">{icon} {title}</div>
+                                    <div className="phase-title"><span aria-hidden="true">{icon}</span> {title}</div>
                                     <div className="phase-desc">{desc}</div>
                                 </div>
                                 <div style={{ marginLeft: 'auto' }}>
-                                    {isDone && <span className="info-tag text-green">Completed</span>}
-                                    {isError && <span className="info-tag text-red">Error</span>}
-                                    {status === 'cancelled' && <span className="info-tag text-amber">Cancelled</span>}
+                                    {isDone && <span className="info-tag text-green" aria-live="polite">Completed</span>}
+                                    {isError && <span className="info-tag text-red" aria-live="polite">Error</span>}
+                                    {status === 'cancelled' && <span className="info-tag text-amber" aria-live="polite">Cancelled</span>}
                                 </div>
                             </div>
 
-                            {/* Progress section */}
+                            {/* Progress section — aria-live so screen readers announce updates */}
                             {isActive && (
-                                <>
-                                    <ProgressBar percent={p.percent || 0} />
+                                <div role="status" aria-live="polite" aria-label={`Phase ${num} progress: ${p.percent || 0}% complete, ${p.processed || 0} of ${p.total || 0} files`}>
+                                    <ProgressBar percent={p.percent || 0} label={`Phase ${num} progress`} />
                                     <div className="phase-stats mt-4">
                                         <div className="phase-stat">
                                             <div className="phase-stat-value">{(p.processed || 0).toLocaleString()}</div>
@@ -182,7 +194,7 @@ export default function PhasePanel() {
                                         </div>
                                     </div>
                                     <PerfRow stats={perfStats} />
-                                </>
+                                </div>
                             )}
 
                             {/* Done stats */}
@@ -212,8 +224,10 @@ export default function PhasePanel() {
                                         onClick={() => startPhase(num)}
                                         id={`btn-start-phase-${num}`}
                                         disabled={status === 'cancelled'}
+                                        aria-label={status === 'error' ? `Retry Phase ${num}: ${title}` : `Start Phase ${num}: ${title}`}
                                     >
-                                        {status === 'error' ? '🔄 Retry Phase' : `▶ Start Phase ${num}`}
+                                        <span aria-hidden="true">{status === 'error' ? '🔄' : '▶'}</span>
+                                        {status === 'error' ? ' Retry Phase' : ` Start Phase ${num}`}
                                     </button>
                                 )}
                                 {isActive && (
@@ -222,15 +236,19 @@ export default function PhasePanel() {
                                             className="btn btn-ghost"
                                             onClick={togglePause}
                                             id={`btn-pause-phase-${num}`}
+                                            aria-label={isPaused ? `Resume Phase ${num}` : `Pause Phase ${num}`}
+                                            aria-pressed={isPaused}
                                         >
-                                            {isPaused ? '▶ Resume' : '⏸ Pause'}
+                                            <span aria-hidden="true">{isPaused ? '▶' : '⏸'}</span>
+                                            {isPaused ? ' Resume' : ' Pause'}
                                         </button>
                                         <button
                                             className="btn btn-danger"
                                             onClick={handleCancel}
                                             id={`btn-cancel-phase-${num}`}
+                                            aria-label={`Cancel Phase ${num} and trigger safe rollback`}
                                         >
-                                            ✕ Cancel (Safe Rollback)
+                                            <span aria-hidden="true">✕</span> Cancel (Safe Rollback)
                                         </button>
                                     </>
                                 )}
@@ -239,8 +257,9 @@ export default function PhasePanel() {
                                         className="btn btn-green"
                                         onClick={() => setStep('report')}
                                         id="btn-view-report"
+                                        aria-label="View full audit report"
                                     >
-                                        📋 View Full Report
+                                        <span aria-hidden="true">📋</span> View Full Report
                                     </button>
                                 )}
                             </div>
@@ -291,9 +310,9 @@ function BackupModal({ onAccept, onSkip, onClose, selectedDrive, manifest }) {
     }
 
     return (
-        <div className="modal-overlay">
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="backup-modal-title">
             <div className="modal">
-                <h3>🛡️ Create Safety Backup?</h3>
+                <h3 id="backup-modal-title"><span aria-hidden="true">🛡️</span> Create Safety Backup?</h3>
                 <p>
                     We strongly recommend creating a backup before moving files.
                     A backup snapshot will be saved to a timestamped folder on the same drive.
@@ -301,31 +320,31 @@ function BackupModal({ onAccept, onSkip, onClose, selectedDrive, manifest }) {
                     <strong>{(manifest?.length || 0).toLocaleString()} files</strong> will be included.
                 </p>
                 {creating && progress && (
-                    <>
-                        <ProgressBar percent={progress.percent || 0} />
+                    <div role="status" aria-live="polite" aria-label={`Backup progress: ${progress.percent || 0}% complete`}>
+                        <ProgressBar percent={progress.percent || 0} label="Backup creation progress" />
                         <p style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)' }}>
                             {progress.copied} / {progress.total} copied…
                         </p>
-                    </>
+                    </div>
                 )}
                 {!skipConfirm ? (
                     <div className="modal-actions">
-                        <button className="btn btn-ghost" onClick={() => setSkipConfirm(true)} disabled={creating} id="btn-skip-backup">
+                        <button className="btn btn-ghost" onClick={() => setSkipConfirm(true)} disabled={creating} id="btn-skip-backup" aria-label="Skip backup (not recommended)">
                             Skip (not recommended)
                         </button>
-                        <button className="btn btn-primary" onClick={handleCreate} disabled={creating} id="btn-create-backup">
-                            {creating ? 'Creating…' : '✅ Yes, Create Backup'}
+                        <button className="btn btn-primary" onClick={handleCreate} disabled={creating} id="btn-create-backup" aria-label={creating ? 'Creating backup, please wait' : 'Yes, create a safety backup'}>
+                            {creating ? 'Creating…' : <><span aria-hidden="true">✅</span> Yes, Create Backup</>}
                         </button>
                     </div>
                 ) : (
                     <>
-                        <div className="alert alert-warn mt-4">
-                            <span className="alert-icon">⚠️</span>
+                        <div className="alert alert-warn mt-4" role="alert">
+                            <span className="alert-icon" aria-hidden="true">⚠️</span>
                             <span>Are you sure? Without a backup, file moves cannot be automatically undone.</span>
                         </div>
                         <div className="modal-actions">
-                            <button className="btn btn-ghost" onClick={() => setSkipConfirm(false)} id="btn-go-back-backup">← Go Back</button>
-                            <button className="btn btn-danger" onClick={onSkip} id="btn-confirm-skip-backup">
+                            <button className="btn btn-ghost" onClick={() => setSkipConfirm(false)} id="btn-go-back-backup" aria-label="Go back to backup options"><span aria-hidden="true">←</span> Go Back</button>
+                            <button className="btn btn-danger" onClick={onSkip} id="btn-confirm-skip-backup" aria-label="Confirm: proceed without creating a backup">
                                 Proceed Without Backup
                             </button>
                         </div>

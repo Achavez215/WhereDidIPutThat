@@ -14,27 +14,36 @@ function DriveCard({ drive, selected, onSelect }) {
 
     const icon = drive.isCloud ? '☁️' : drive.driveType === 2 ? '💾' : drive.isSystem ? '💻' : '🗄️'
 
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onSelect()
+        }
+    }
+
     return (
         <div
             className={`card drive-card ${selected ? 'selected' : ''} ${drive.isCloud ? 'warning' : ''}`}
             onClick={onSelect}
+            onKeyDown={handleKeyDown}
+            tabIndex={0}
             id={`drive-${drive.letter.replace(':', '')}`}
             role="button"
             aria-pressed={selected}
-            aria-label={`Drive ${drive.letter} — ${drive.label}`}
+            aria-label={`Drive ${drive.letter} — ${drive.label}${drive.isSystem ? ', System drive' : ''}${drive.isCloud ? ', Cloud drive' : ''}${drive.totalBytes > 0 ? `, ${formatBytes(drive.freeBytes)} free of ${formatBytes(drive.totalBytes)}` : ''}`}
         >
-            {drive.isCloud && <span className="cloud-overlay">☁</span>}
-            <div className="drive-icon">{icon}</div>
+            {drive.isCloud && <span className="cloud-overlay" aria-hidden="true">☁</span>}
+            <div className="drive-icon" aria-hidden="true">{icon}</div>
             <div className="drive-letter">{drive.letter}</div>
             <div className="drive-label">{drive.label}</div>
-            <div className="drive-meta">
+            <div className="drive-meta" aria-hidden="true">
                 <span className={`pill ${drive.isCloud ? 'cloud' : ''}`}>
                     {drive.isCloud ? 'Cloud' : drive.typeLabel}
                 </span>
                 {drive.isSystem && <span className="pill system">System</span>}
             </div>
             {drive.totalBytes > 0 && (
-                <div className="drive-storage mt-4">
+                <div className="drive-storage mt-4" aria-hidden="true">
                     <div className="drive-storage-text">
                         {formatBytes(drive.freeBytes)} free of {formatBytes(drive.totalBytes)}
                     </div>

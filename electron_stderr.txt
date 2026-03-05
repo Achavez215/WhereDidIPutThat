@@ -7,3 +7,9 @@
 [23696:0304/201333.246:ERROR:gpu\ipc\host\gpu_disk_cache.cc:724] Gpu Cache Creation failed: -2
 [23696:0304/201333.246:ERROR:net\disk_cache\disk_cache.cc:236] Unable to create cache
 [23696:0304/201333.303:ERROR:gpu\ipc\host\gpu_disk_cache.cc:724] Gpu Cache Creation failed: -2
+Error occurred in handler for 'theme:get': Error: No handler registered for 'theme:get'
+    at Session.<anonymous> (node:electron/js2c/browser_init:2:116772)
+    at Session.emit (node:events:508:28)
+Error occurred in handler for 'theme:get': Error: No handler registered for 'theme:get'
+    at Session.<anonymous> (node:electron/js2c/browser_init:2:116772)
+    at Session.emit (node:events:508:28)

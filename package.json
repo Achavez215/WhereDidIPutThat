@@ -33,6 +33,12 @@
     "build": {
         "appId": "com.local.wheredidiputhat",
         "productName": "WhereDidIPutThat",
+        "appUserModelId": "WhereDidIPutThat.FileOrganizer",
+        "publish": {
+            "provider": "github",
+            "owner": "Achavez215",
+            "repo": "WhereDidIPutThat"
+        },
         "directories": {
             "output": "dist-electron"
         },

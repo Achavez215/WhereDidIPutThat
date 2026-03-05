@@ -11,6 +11,7 @@ const safetyGuard = require('./safetyGuard')
 const auditLogger = require('./auditLogger')
 const performanceController = require('./performanceController')
 const pathManager = require('./pathManager')
+const diskUtils = require('./diskUtils')
 
 const BATCH_SIZE = 50
 let _cancelled = false
@@ -25,6 +26,13 @@ async function createBackup(files, destDrive, onProgress) {
     _cancelled = false
     const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
     const backupPath = path.join(pathManager.getBackupRootDir(destDrive), `FileOrg_Backup_${ts}`)
+
+    // ── Disk space pre-check ─────────────────────────────────────
+    const totalSizeBytes = files.reduce((sum, f) => sum + (f.size || 0), 0)
+    const spaceCheck = diskUtils.checkDiskSpace(destDrive || os.homedir(), totalSizeBytes)
+    if (!spaceCheck.ok) {
+        return { ok: false, error: spaceCheck.message }
+    }
 
     try {
         fs.mkdirSync(backupPath, { recursive: true })

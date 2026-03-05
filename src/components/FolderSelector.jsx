@@ -8,22 +8,31 @@ const FOLDER_ICONS = {
 
 function CheckRow({ folder, checked, onToggle }) {
     const icon = FOLDER_ICONS[folder.name] || '📁'
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onToggle()
+        }
+    }
     return (
         <div
             className={`checkbox-row ${checked ? 'checked' : ''}`}
             onClick={onToggle}
+            onKeyDown={handleKeyDown}
             role="checkbox"
             aria-checked={checked}
+            tabIndex={0}
             id={`folder-${folder.name.replace(/\s/g, '-').toLowerCase()}`}
+            aria-label={`${folder.name} — ${folder.fullPath}`}
         >
-            <div className="custom-checkbox">
+            <div className="custom-checkbox" aria-hidden="true">
                 <svg viewBox="0 0 12 10" fill="none">
                     <polyline points="1,5 4.5,8.5 11,1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
             </div>
-            <span style={{ fontSize: 16 }}>{icon}</span>
+            <span style={{ fontSize: 16 }} aria-hidden="true">{icon}</span>
             <span className="checkbox-label">{folder.name}</span>
-            <span className="checkbox-sub mono">{folder.fullPath}</span>
+            <span className="checkbox-sub mono" aria-hidden="true">{folder.fullPath}</span>
         </div>
     )
 }
@@ -50,10 +59,24 @@ export default function FolderSelector() {
 
             <div className="flex gap-3 mb-6 flex-between">
                 <div className="flex gap-2">
-                    <button className="btn btn-ghost btn-sm" onClick={selectAllFolders} id="btn-select-all-folders">Select All</button>
-                    <button className="btn btn-ghost btn-sm" onClick={clearFolders} id="btn-clear-folders">Clear</button>
+                    <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={selectAllFolders}
+                        id="btn-select-all-folders"
+                        aria-label={`Select all ${topLevelFolders.length} folders`}
+                    >
+                        Select All
+                    </button>
+                    <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={clearFolders}
+                        id="btn-clear-folders"
+                        aria-label="Clear all selected folders"
+                    >
+                        Clear
+                    </button>
                 </div>
-                <span className="info-tag">
+                <span className="info-tag" aria-live="polite" aria-atomic="true">
                     {selectedFolders.length} of {topLevelFolders.length} selected
                 </span>
             </div>

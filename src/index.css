@@ -65,6 +65,44 @@
   padding: 0;
 }
 
+/* ── Accessibility: Focus Ring ─────────────────────────────── */
+/* Visible keyboard focus indicator for all interactive elements.
+   Uses :focus-visible so mouse users are unaffected. */
+:focus-visible {
+  outline: 2px solid var(--accent-teal);
+  outline-offset: 3px;
+  border-radius: var(--r-sm);
+}
+
+/* Ensure inputs also get a clear focus state */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent-teal);
+  outline-offset: 0;
+  border-color: var(--accent-teal) !important;
+  border-radius: var(--r-sm);
+}
+
+/* Remove default browser outline when our custom one is active */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ── Accessibility: Reduced Motion ─────────────────────────── */
+/* Respect user's OS "Reduce Motion" setting */
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 html,
 body,
 #root {
@@ -110,8 +148,8 @@ body,
   align-items: center;
   gap: var(--sp-3);
   padding: 10px var(--sp-6);
-  background: linear-gradient(90deg, rgba(56,189,248,0.08), rgba(99,102,241,0.06));
-  border-bottom: 1px solid rgba(56,189,248,0.2);
+  background: linear-gradient(90deg, rgba(56, 189, 248, 0.08), rgba(99, 102, 241, 0.06));
+  border-bottom: 1px solid rgba(56, 189, 248, 0.2);
   font-size: 13px;
   color: var(--text-primary);
   flex-shrink: 0;
@@ -119,13 +157,24 @@ body,
 }
 
 @keyframes slideDown {
-  from { transform: translateY(-100%); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
-.update-banner__icon { font-size: 16px; }
+.update-banner__icon {
+  font-size: 16px;
+}
 
-.update-banner__text { flex: 1; }
+.update-banner__text {
+  flex: 1;
+}
 
 .update-banner__btn {
   padding: 5px 12px;
@@ -139,7 +188,9 @@ body,
   transition: opacity var(--t-fast);
 }
 
-.update-banner__btn:hover { opacity: 0.88; }
+.update-banner__btn:hover {
+  opacity: 0.88;
+}
 
 .update-banner__close {
   background: transparent;
@@ -152,7 +203,9 @@ body,
   transition: color var(--t-fast);
 }
 
-.update-banner__close:hover { color: var(--text-primary); }
+.update-banner__close:hover {
+  color: var(--text-primary);
+}
 
 
 
@@ -240,6 +293,14 @@ body,
   cursor: default;
   transition: background var(--t-fast);
   position: relative;
+  /* Button reset — allows sidebar steps to be semantic <button> elements */
+  background: transparent;
+  border: none;
+  font-family: var(--font-sans);
+  font-size: inherit;
+  color: inherit;
+  text-align: left;
+  width: 100%;
 }
 
 .sidebar-step.active {
@@ -1238,4 +1299,19 @@ body,
     opacity: 1;
     transform: translateX(-50%) translateY(0);
   }
+}
+
+/* ── Screen Reader Only Utility ────────────────────────────── */
+/* Visually hides text while keeping it accessible to screen readers.
+   Use on spans inside icon-only buttons, e.g. <span class="sr-only">Submit</span> */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
 }

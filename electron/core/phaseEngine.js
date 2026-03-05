@@ -12,6 +12,7 @@ const fileScanner = require('./fileScanner')
 const checkpointLogger = require('./checkpointLogger')
 const auditLogger = require('./auditLogger')
 const performanceController = require('./performanceController')
+const diskUtils = require('./diskUtils')
 
 const BATCH_SIZE = 50
 let _cancelled = false
@@ -86,6 +87,18 @@ async function phase3_backup(context, onProgress) {
 async function phase4_execute(context, onProgress) {
     const { manifest, destinationMap } = context
     if (!manifest || !destinationMap) return { ok: false, error: 'Missing manifest or destination map.' }
+
+    // ── Disk space pre-check ─────────────────────────────────────
+    // Estimate total bytes needed and pick the first destination to check against
+    const totalBytes = manifest.reduce((sum, f) => sum + (f.size || 0), 0)
+    const destPaths = Object.values(destinationMap).filter(Boolean)
+    if (destPaths.length > 0) {
+        // Check the drive of the first mapped destination
+        const spaceCheck = diskUtils.checkDiskSpace(destPaths[0], totalBytes)
+        if (!spaceCheck.ok) {
+            return { ok: false, error: spaceCheck.message }
+        }
+    }
 
     performanceController.start(manifest.length)
     let processed = 0

@@ -43,6 +43,13 @@ contextBridge.exposeInMainWorld('api', {
     onUpdateAvailable: (cb) => ipcRenderer.on('update:available', () => cb()),
     onUpdateDownloaded: (cb) => ipcRenderer.on('update:downloaded', () => cb()),
 
+    // OS Theme
+    getSystemTheme: () => ipcRenderer.invoke('theme:get'),
+    onThemeChanged: (cb) => ipcRenderer.on('theme:changed', (_, isDark) => cb(isDark)),
+
+    // Disk space
+    checkDiskSpace: (targetPath, requiredBytes) => ipcRenderer.invoke('disk:checkSpace', targetPath, requiredBytes),
+
     // Event listeners (one-way from main → renderer)
     onPhaseProgress: (cb) => ipcRenderer.on('phase:progress', (_, data) => cb(data)),
     onBackupProgress: (cb) => ipcRenderer.on('backup:progress', (_, data) => cb(data)),

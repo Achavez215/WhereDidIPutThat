@@ -90,7 +90,7 @@ export default function DestinationMapper() {
                         <div>
                             {currentMode === 'recommend' ? (
                                 <div className="recommendation">
-                                    <span className="arrow">→</span>
+                                    <span className="arrow" aria-hidden="true">→</span>
                                     <span className="mono" style={{ fontSize: 11 }}>{rec}</span>
                                     <span className="info-tag" style={{ marginLeft: 8 }}>Recommended</span>
                                 </div>
@@ -102,8 +102,15 @@ export default function DestinationMapper() {
                                         value={destinationMap[cat.key] || ''}
                                         onChange={e => setDestination(cat.key, e.target.value)}
                                         id={`dest-input-${cat.key}`}
+                                        aria-label={`Destination path for ${cat.label} files`}
                                     />
-                                    <button className="btn btn-ghost btn-sm" onClick={() => handleBrowse(cat.key)}>Browse</button>
+                                    <button
+                                        className="btn btn-ghost btn-sm"
+                                        onClick={() => handleBrowse(cat.key)}
+                                        aria-label={`Browse for existing destination folder for ${cat.label}`}
+                                    >
+                                        Browse
+                                    </button>
                                 </div>
                             ) : (
                                 <input
@@ -112,12 +119,13 @@ export default function DestinationMapper() {
                                     value={destinationMap[cat.key] || ''}
                                     onChange={e => setDestination(cat.key, e.target.value)}
                                     id={`dest-input-new-${cat.key}`}
+                                    aria-label={`New destination folder path for ${cat.label} files`}
                                 />
                             )}
                         </div>
 
                         {/* Mode toggle */}
-                        <div className="flex gap-2">
+                        <div className="flex gap-2" role="group" aria-label={`Destination mode for ${cat.label}`}>
                             {['recommend', 'existing', 'new'].map(m => (
                                 <button
                                     key={m}
@@ -127,9 +135,11 @@ export default function DestinationMapper() {
                                         if (m === 'recommend') setDestination(cat.key, rec)
                                     }}
                                     id={`dest-mode-${cat.key}-${m}`}
-                                    title={m === 'recommend' ? 'Use system recommendation' : m === 'existing' ? 'Select existing folder' : 'Create new folder'}
+                                    aria-label={m === 'recommend' ? `Use recommended path for ${cat.label}` : m === 'existing' ? `Browse existing folder for ${cat.label}` : `Create new folder for ${cat.label}`}
+                                    aria-pressed={currentMode === m}
                                 >
-                                    {m === 'recommend' ? '✨' : m === 'existing' ? '📂' : '➕'}
+                                    <span aria-hidden="true">{m === 'recommend' ? '✨' : m === 'existing' ? '📂' : '➕'}</span>
+                                    <span className="sr-only">{m === 'recommend' ? 'Recommend' : m === 'existing' ? 'Browse' : 'New'}</span>
                                 </button>
                             ))}
                         </div>
