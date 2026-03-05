@@ -6,54 +6,71 @@ $viteJob = Start-Job -ScriptBlock {
     & ".\node_modules\.bin\vite.cmd" --port 5173
 }
 
-Write-Host "Waiting for Vite to start on port 5173..." -ForegroundColor Cyan
+Write-Host "Waiting for Vite on port 5173..." -ForegroundColor Cyan
 Start-Sleep -Seconds 5
 
-# Try to hit the Vite server
+# Ping Vite
+$viteOk = $false
 try {
-    $resp = Invoke-WebRequest -Uri 'http://localhost:5173' -TimeoutSec 5 -UseBasicParsing
-    Write-Host ("Vite server OK — HTTP " + $resp.StatusCode) -ForegroundColor Green
+    $resp = Invoke-WebRequest -Uri 'http://localhost:5173' -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
+    Write-Host "Vite OK - HTTP $($resp.StatusCode)" -ForegroundColor Green
+    $viteOk = $true
 } catch {
-    Write-Host "Vite server did not respond — checking job output:" -ForegroundColor Red
-    Receive-Job $viteJob | Write-Host
+    Write-Host "Vite did not respond!" -ForegroundColor Red
+    Receive-Job $viteJob | ForEach-Object { Write-Host $_ }
 }
 
-# Launch Electron and capture output
+if (-not $viteOk) {
+    Stop-Job $viteJob | Out-Null
+    Remove-Job $viteJob | Out-Null
+    Write-Host "Aborting smoke test - Vite failed to start." -ForegroundColor Red
+    exit 1
+}
+
+# Launch Electron
 Write-Host "Launching Electron..." -ForegroundColor Cyan
+$stdoutFile = ".\smoke_stdout.txt"
+$stderrFile = ".\smoke_stderr.txt"
+
 $proc = Start-Process `
     -FilePath ".\node_modules\electron\dist\electron.exe" `
     -ArgumentList "." `
     -PassThru `
-    -RedirectStandardError "$PSScriptRoot\smoke_stderr.txt" `
-    -RedirectStandardOutput "$PSScriptRoot\smoke_stdout.txt"
+    -RedirectStandardError $stderrFile `
+    -RedirectStandardOutput $stdoutFile
 
-Write-Host ("Electron started — PID: " + $proc.Id) -ForegroundColor Green
+Write-Host "Electron PID: $($proc.Id)" -ForegroundColor Green
 Start-Sleep -Seconds 10
 
 $exited = $proc.HasExited
-Write-Host ("Electron still running: " + (-not $exited)) -ForegroundColor $(if (-not $exited) { 'Green' } else { 'Red' })
+if (-not $exited) {
+    Write-Host "PASS - Electron is still running after 10s" -ForegroundColor Green
+} else {
+    Write-Host "FAIL - Electron exited early (exit code: $($proc.ExitCode))" -ForegroundColor Red
+}
 
-if (Test-Path "$PSScriptRoot\smoke_stderr.txt") {
-    $err = Get-Content "$PSScriptRoot\smoke_stderr.txt" -Raw
-    if ($err.Trim()) {
+if (Test-Path $stderrFile) {
+    $errContent = (Get-Content $stderrFile -Raw).Trim()
+    if ($errContent) {
         Write-Host "--- Electron STDERR ---" -ForegroundColor Yellow
-        Write-Host $err
+        Write-Host $errContent
     } else {
-        Write-Host "No stderr output (clean)" -ForegroundColor Green
+        Write-Host "Stderr: clean (no errors)" -ForegroundColor Green
     }
 }
 
-if (Test-Path "$PSScriptRoot\smoke_stdout.txt") {
-    $out = Get-Content "$PSScriptRoot\smoke_stdout.txt" -Raw
-    if ($out.Trim()) {
+if (Test-Path $stdoutFile) {
+    $outContent = (Get-Content $stdoutFile -Raw).Trim()
+    if ($outContent) {
         Write-Host "--- Electron STDOUT ---" -ForegroundColor Cyan
-        Write-Host $out
+        Write-Host $outContent
     }
 }
 
 # Cleanup
-Write-Host "Shutting down..." -ForegroundColor Gray
 if (-not $proc.HasExited) { $proc.Kill() }
 Stop-Job $viteJob | Out-Null
 Remove-Job $viteJob | Out-Null
-Write-Host "Smoke test complete." -ForegroundColor Cyan
+Remove-Item $stdoutFile -ErrorAction SilentlyContinue
+Remove-Item $stderrFile -ErrorAction SilentlyContinue
+Write-Host "Smoke test done." -ForegroundColor Cyan
