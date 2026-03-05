@@ -25,6 +25,7 @@ const auditLogger = require(path.join(__dirname, 'core', 'auditLogger'))
 const performanceController = require(path.join(__dirname, 'core', 'performanceController'))
 const settingsManager = require(path.join(__dirname, 'core', 'settingsManager'))
 const diskUtils = require(path.join(__dirname, 'core', 'diskUtils'))
+const historyManager = require(path.join(__dirname, 'core', 'historyManager'))
 
 let mainWindow = null
 
@@ -204,6 +205,17 @@ ipcMain.handle('backup:rollback', async (event, backupMeta) => {
 
 ipcMain.handle('backup:delete', (_, backupPath) => backupManager.deleteBackup(backupPath))
 
+// ── History Management handlers ───────────────────────────
+ipcMain.handle('history:get', async (event, drive) => {
+    return await historyManager.getSessionHistory(drive)
+})
+
+ipcMain.handle('history:undo', async (event, { sessionId, drive }) => {
+    return await historyManager.undoSession(sessionId, drive, (progress) => {
+        if (!event.sender.isDestroyed()) event.sender.send('history:undoProgress', progress)
+    })
+})
+
 // ──────────────────────────────────────────────
 // IPC Handlers — Logging & Report
 // ──────────────────────────────────────────────
@@ -226,6 +238,12 @@ ipcMain.handle('log:export', async (_, format) => {
 })
 
 ipcMain.handle('log:clear', () => auditLogger.clearLog())
+
+ipcMain.handle('phase:rollback', async (event, movedFiles) => {
+    return await core.phaseEngine.startRollback(movedFiles, (p) => {
+        if (!mainWindow.isDestroyed()) mainWindow.webContents.send('phase:rollbackProgress', p)
+    })
+})
 
 // ──────────────────────────────────────────────
 // IPC Handlers — Performance

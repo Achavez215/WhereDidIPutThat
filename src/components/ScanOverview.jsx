@@ -54,7 +54,9 @@ function TreeNode({ node, depth = 0 }) {
                 >
                     {!isExcluded && '✓'}
                 </div>
-                <span className="tree-toggle">{hasChildren ? (expanded ? '▼' : '▶') : '•'}</span>
+                <span className="tree-toggle" style={{ fontSize: '10px', minWidth: '60px' }}>
+                    {hasChildren ? (expanded ? '▼ Collapse' : '▶ Expand') : '• Item'}
+                </span>
                 <span className="tree-icon">{isFolder ? '📁' : '📄'}</span>
                 <span className="tree-name">{node.name}</span>
                 <div className="tree-stats">

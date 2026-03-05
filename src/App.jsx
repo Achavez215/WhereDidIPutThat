@@ -7,6 +7,9 @@ import PhasePanel from './components/PhasePanel'
 import ReportScreen from './components/ReportScreen'
 import PermissionGate from './components/PermissionGate'
 import SettingsScreen from './components/SettingsScreen'
+import RollbackView from './components/RollbackView'
+import HistoryView from './components/HistoryView'
+import ReportView from './components/ReportView'
 import HelpScreen from './components/HelpScreen'
 import UpdateBanner from './components/UpdateBanner'
 
@@ -16,6 +19,7 @@ const STEPS = [
     { key: 'mapping', label: 'Mapping', icon: '🗺️' },
     { key: 'phases', label: 'Execution', icon: '⚡' },
     { key: 'report', label: 'Report', icon: '📋' },
+    { key: 'history', label: 'History', icon: '⏪' },
 ]
 
 const STEP_INDICES = { drive: 0, folders: 1, mapping: 2, phases: 3, report: 4 }
@@ -164,9 +168,9 @@ export default function App() {
                                 className="btn btn-amber btn-sm"
                                 onClick={() => { setStep('phases'); dismissCheckpoint() }}
                                 id="btn-resume-checkpoint"
-                                aria-label="Resume from last checkpoint at Phase ${checkpoint.phase}"
+                                aria-label={`Resume from Phase ${checkpoint.phase}`}
                             >
-                                Resume
+                                ⚡ Resume Execution
                             </button>
                             <button
                                 className="btn btn-ghost btn-sm"
@@ -189,7 +193,9 @@ export default function App() {
                             {step === 'folders' && <FolderSelector />}
                             {step === 'mapping' && <DestinationMapper />}
                             {step === 'phases' && <PhasePanel />}
-                            {step === 'report' && <ReportScreen />}
+                            {step === 'report' && <ReportView />}
+                            {step === 'rollback' && <RollbackView />}
+                            {step === 'history' && <HistoryView />}
                         </>
                     )}
 

@@ -13,6 +13,14 @@ const PHASE_META = [
     { num: 7, title: 'Cleanup', desc: 'Scan for and remove empty folders.', icon: '🧹' },
 ]
 
+const formatBytes = (bytes) => {
+    if (!bytes) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
 function ProgressBar({ percent, label }) {
     return (
         <div
@@ -163,8 +171,16 @@ export default function PhasePanel() {
     }
 
     const handleCancel = async () => {
+        const confirmMsg = "Cancel current operation? This will halt further moves and trigger a safe rollback of items moved in this step."
+        if (!window.confirm(confirmMsg)) return
+
         await window.api.cancelPhase(buildContext(currentPhase))
         setPhaseStatus(currentPhase, 'cancelled')
+
+        const movedFiles = phaseProgress[currentPhase]?.movedFiles
+        if (movedFiles && Object.keys(movedFiles).length > 0) {
+            setStep('rollback') // We need a rollback view
+        }
     }
 
     const isPhaseUnlocked = (num) => {
@@ -231,18 +247,25 @@ export default function PhasePanel() {
                                         </div>
                                         <div className="phase-stat">
                                             <div className="phase-stat-value">{(p.total || 0).toLocaleString()}</div>
-                                            <div className="phase-stat-label">Total</div>
+                                            <div className="phase-stat-label">Total Files</div>
                                         </div>
+                                        {num === 4 && (
+                                            <div className="phase-stat">
+                                                <div className="phase-stat-value">{formatBytes(p.bytesProcessed || 0)}</div>
+                                                <div className="phase-stat-label">of {formatBytes(p.totalBytes || 0)}</div>
+                                            </div>
+                                        )}
                                         <div className="phase-stat">
                                             <div className="phase-stat-value text-red">{(p.failed || 0).toLocaleString()}</div>
                                             <div className="phase-stat-label">Failed</div>
                                         </div>
-                                        <div className="phase-stat">
-                                            <div className="phase-stat-value text-amber">{p.percent || 0}%</div>
-                                            <div className="phase-stat-label">Complete</div>
-                                        </div>
                                     </div>
                                     <PerfRow stats={perfStats} />
+                                    {num === 4 && perfStats?.bytesPerSecond > 0 && (
+                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'right', marginTop: '4px' }}>
+                                            Throughput: {formatBytes(perfStats.bytesPerSecond)}/s
+                                        </div>
+                                    )}
                                 </div>
                             )}
 

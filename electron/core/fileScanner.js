@@ -47,7 +47,7 @@ async function scanFolders(folderPaths, onProgress) {
     const tree = { name: 'Root', type: 'root', children: [] }
     let scanned = 0
     let skipped = 0
-    const manifest = [] // Still keep a flat manifest for compatibility with phaseEngine
+    const manifest = []
 
     for (const folderPath of folderPaths) {
         if (safetyGuard.isProtected(folderPath)) {
@@ -57,7 +57,7 @@ async function scanFolders(folderPaths, onProgress) {
         }
 
         const folderNode = {
-            name: path.basename(folderPath),
+            name: path.basename(folderPath) || folderPath, // handle root paths like C:\
             path: folderPath,
             type: 'folder',
             children: [],
@@ -68,17 +68,18 @@ async function scanFolders(folderPaths, onProgress) {
         await walkDir(folderPath, folderNode, manifest, () => {
             scanned++
             if (scanned % BATCH_SIZE === 0) {
-                onProgress({ type: 'count', scanned, manifest: [] })
+                // Return partial stats so UI can show progress count
+                onProgress({ type: 'count', scanned, currentFile: folderPath })
             }
         })
     }
 
-    // Final progress push
-    onProgress({ type: 'complete', scanned, skipped })
-
     const stats = buildStats(manifest)
+    // Write checkpoint for Phase 1 completion
     checkpointLogger.writeCheckpoint({ phase: 1, tree, stats, folderPaths })
 
+    // Return everything needed for the UI and the next phase
+    onProgress({ type: 'complete', scanned, skipped, stats })
     return { tree, manifest, stats }
 }
 

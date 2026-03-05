@@ -137,9 +137,10 @@ export default function DestinationMapper() {
                                     id={`dest-mode-${cat.key}-${m}`}
                                     aria-label={m === 'recommend' ? `Use recommended path for ${cat.label}` : m === 'existing' ? `Browse existing folder for ${cat.label}` : `Create new folder for ${cat.label}`}
                                     aria-pressed={currentMode === m}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
                                 >
                                     <span aria-hidden="true">{m === 'recommend' ? '✨' : m === 'existing' ? '📂' : '➕'}</span>
-                                    <span className="sr-only">{m === 'recommend' ? 'Recommend' : m === 'existing' ? 'Browse' : 'New'}</span>
+                                    <span style={{ fontSize: '10px' }}>{m === 'recommend' ? 'Auto' : m === 'existing' ? 'Browse' : 'New'}</span>
                                 </button>
                             ))}
                         </div>

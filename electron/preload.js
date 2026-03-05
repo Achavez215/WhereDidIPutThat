@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('api', {
     getLogs: () => ipcRenderer.invoke('log:getAll'),
     exportReport: (format) => ipcRenderer.invoke('log:export', format),
     clearLog: () => ipcRenderer.invoke('log:clear'),
+    startRollback: (movedFiles) => ipcRenderer.invoke('phase:rollback', movedFiles),
 
     // Performance stats
     getPerfStats: () => ipcRenderer.invoke('perf:getStats'),
@@ -53,8 +54,16 @@ contextBridge.exposeInMainWorld('api', {
     // Event listeners (one-way from main → renderer)
     onPhaseProgress: (cb) => ipcRenderer.on('phase:progress', (_, data) => cb(data)),
     onBackupProgress: (cb) => ipcRenderer.on('backup:progress', (_, data) => cb(data)),
+    onRollbackProgress: (cb) => ipcRenderer.on('phase:rollbackProgress', (_, data) => cb(data)),
+    onHistoryUndoProgress: (cb) => ipcRenderer.on('history:undoProgress', (_, data) => cb(data)),
+
+    // History
+    getHistory: (drive) => ipcRenderer.invoke('history:get', drive),
+    undoSession: (sessionId, drive) => ipcRenderer.invoke('history:undo', { sessionId, drive }),
 
     // Cleanup listeners to avoid memory leaks
     removePhaseListeners: () => ipcRenderer.removeAllListeners('phase:progress'),
     removeBackupListeners: () => ipcRenderer.removeAllListeners('backup:progress'),
+    removeRollbackListeners: () => ipcRenderer.removeAllListeners('phase:rollbackProgress'),
+    removeHistoryListeners: () => ipcRenderer.removeAllListeners('history:undoProgress'),
 })
