@@ -30,6 +30,7 @@
 | Styling | Vanilla CSS (Dark Command-Center Theme) |
 | Backend | Node.js (Main Process) |
 | Packaging | electron-builder |
+| Database | better-sqlite3 (SQLite WAL) |
 
 ## Getting Started
 
@@ -37,11 +38,12 @@
 
 - [Node.js](https://nodejs.org/) v18+
 - npm v9+
+- - [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) (auto-installed via npm)
 
 ### Installation
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/WhereDidIPutThat.git
+git clone https://github.com/Achavez215/WhereDidIPutThat.git
 cd WhereDidIPutThat
 npm install
 ```
