@@ -5,26 +5,13 @@
 
 'use strict'
 
-// THE FIX: When running via 'electron .', require('electron') should return the module object.
-// If it returns a string, it means we are in a normal Node process or there's a resolution conflict.
-// We must destructure it OR use it as an object.
-
-const electron = require('electron')
-
-// Check if we are actually in Electron's main process
-if (typeof electron === 'string') {
-    // This happens if we run 'node electron/main.js' or if require('electron') resolves to the binary path string
-    // instead of the built-in module.
-    console.error('CRITICAL: require("electron") returned a STAGING string instead of the API object.')
-    console.error('Resolved value:', electron)
-    console.error('Process versions:', process.versions)
-    process.exit(1)
-}
-
-const { app, BrowserWindow, ipcMain, dialog, session, nativeTheme } = electron
-
+// Use CJS require for electron. 
+// When running inside Electron's main process, this returns the API object.
+const { app, BrowserWindow, ipcMain, dialog, session, nativeTheme } = require('electron')
 const path = require('path')
-const isDev = (process.env.ELECTRON_IS_DEV === '1') || (app && !app.isPackaged)
+
+// Dev mode detection
+const isDev = process.env.ELECTRON_IS_DEV === '1' || !app.isPackaged
 
 let mainWindow = null
 const core = {}
@@ -55,7 +42,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-    // Lazy load core modules after app is ready to ensure pathManager/app.getPath works
+    // Lazy load core modules after app is ready
     try {
         core.driveScanner = require('./core/driveScanner')
         core.safetyGuard = require('./core/safetyGuard')
