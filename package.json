@@ -16,6 +16,7 @@
         "package": "vite build && electron-builder"
     },
     "dependencies": {
+        "better-sqlite3": "^12.6.2",
         "electron-log": "^5.2.4",
         "electron-updater": "^6.8.3",
         "zustand": "^4.5.2"

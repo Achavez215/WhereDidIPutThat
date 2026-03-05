@@ -26,6 +26,7 @@ const performanceController = require(path.join(__dirname, 'core', 'performanceC
 const settingsManager = require(path.join(__dirname, 'core', 'settingsManager'))
 const diskUtils = require(path.join(__dirname, 'core', 'diskUtils'))
 const historyManager = require(path.join(__dirname, 'core', 'historyManager'))
+const dbManager = require(path.join(__dirname, 'core', 'dbManager'))
 
 let mainWindow = null
 
@@ -179,6 +180,13 @@ ipcMain.handle('phase:startPhase', async (event, phaseNumber, context) => {
         if (!event.sender.isDestroyed()) event.sender.send('phase:progress', progress)
     })
 })
+
+ipcMain.handle('db:getFiles', (_, category, page, limit) => {
+    const offset = (page - 1) * (limit || 50)
+    return dbManager.getFilesByCategory(category, limit || 50, offset)
+})
+
+ipcMain.handle('db:getStats', () => dbManager.getTotalStats())
 
 ipcMain.handle('phase:pause', () => performanceController.pause())
 ipcMain.handle('phase:resume', () => performanceController.resume())

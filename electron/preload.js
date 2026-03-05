@@ -20,6 +20,10 @@ contextBridge.exposeInMainWorld('api', {
     checkCheckpoint: () => ipcRenderer.invoke('phase:checkCheckpoint'),
     clearCheckpoint: () => ipcRenderer.invoke('phase:clearCheckpoint'),
 
+    // Database access (paginated)
+    getFiles: (category, page, limit) => ipcRenderer.invoke('db:getFiles', category, page, limit),
+    getDbStats: () => ipcRenderer.invoke('db:getStats'),
+
     // Backup
     createBackup: (files, destDrive) => ipcRenderer.invoke('backup:create', files, destDrive),
     rollbackBackup: (backupMeta) => ipcRenderer.invoke('backup:rollback', backupMeta),

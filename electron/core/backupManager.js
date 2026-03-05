@@ -12,6 +12,7 @@ const auditLogger = require('./auditLogger')
 const performanceController = require('./performanceController')
 const pathManager = require('./pathManager')
 const diskUtils = require('./diskUtils')
+const dbManager = require('./dbManager')
 
 const BATCH_SIZE = 50
 let _cancelled = false
@@ -24,11 +25,18 @@ let _cancelled = false
  */
 async function createBackup(files, destDrive, onProgress) {
     _cancelled = false
+
+    // If files not provided, fetch all planned moves from database
+    const filesToBackup = files || dbManager.getPlannedMoves()
+    if (!filesToBackup || filesToBackup.length === 0) {
+        return { ok: true, backupPath: null, copied: 0, message: 'No files to backup.' }
+    }
+
     const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
     const backupPath = path.join(pathManager.getBackupRootDir(destDrive), `FileOrg_Backup_${ts}`)
 
     // ── Disk space pre-check ─────────────────────────────────────
-    const totalSizeBytes = files.reduce((sum, f) => sum + (f.size || 0), 0)
+    const totalSizeBytes = filesToBackup.reduce((sum, f) => sum + (f.size || 0), 0)
     // Overhead: Backup + Final Destination (if on the same drive)
     // For simplicity, we check for 2.1x the size to be extremely safe
     const requiredSpace = Math.ceil(totalSizeBytes * 2.1)
@@ -45,14 +53,14 @@ async function createBackup(files, destDrive, onProgress) {
     }
 
     const backupManifest = []
-    performanceController.start(files.length)
+    performanceController.start(filesToBackup.length)
     let copied = 0, failed = 0
 
-    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+    for (let i = 0; i < filesToBackup.length; i += BATCH_SIZE) {
         if (_cancelled) break
         await performanceController.waitIfPaused()
 
-        const batch = files.slice(i, i + BATCH_SIZE)
+        const batch = filesToBackup.slice(i, i + BATCH_SIZE)
         const copyPromises = batch.map(async (file) => {
             if (_cancelled || safetyGuard.isProtected(file.srcPath)) return null
 
@@ -79,8 +87,8 @@ async function createBackup(files, destDrive, onProgress) {
 
         onProgress({
             phase: 3, status: 'running',
-            copied, failed, total: files.length,
-            percent: Math.round(((i + batch.length) / files.length) * 100),
+            copied, failed, total: filesToBackup.length,
+            percent: Math.round(((i + batch.length) / filesToBackup.length) * 100),
         })
 
         await performanceController.batchDelay()

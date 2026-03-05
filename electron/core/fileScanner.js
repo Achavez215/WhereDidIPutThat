@@ -10,6 +10,7 @@ const path = require('path')
 const safetyGuard = require('./safetyGuard')
 const checkpointLogger = require('./checkpointLogger')
 const pathManager = require('./pathManager')
+const dbManager = require('./dbManager')
 
 const BATCH_SIZE = 200
 const YIELD_THRESHOLD = 500 // Yield event loop every N entries
@@ -51,7 +52,10 @@ async function scanFolders(folderPaths, onProgress) {
     const tree = { name: 'Root', type: 'root', children: [] }
     let scanned = 0
     let skipped = 0
-    const manifest = []
+
+    // Initialize session database
+    dbManager.initDb()
+    let fileBuffer = []
 
     for (const folderPath of folderPaths) {
         if (safetyGuard.isProtected(folderPath)) {
@@ -69,8 +73,8 @@ async function scanFolders(folderPaths, onProgress) {
         }
         tree.children.push(folderNode)
 
-        await walkDir(folderPath, folderNode, manifest, () => {
-            scanned++
+        await walkDir(folderPath, folderNode, fileBuffer, () => {
+            scanned = scanned + 1
             if (scanned % BATCH_SIZE === 0) {
                 // Return partial stats so UI can show progress count
                 onProgress({ type: 'count', scanned, currentFile: folderPath })
@@ -78,13 +82,18 @@ async function scanFolders(folderPaths, onProgress) {
         }, { entryCount: 0 })
     }
 
-    const stats = buildStats(manifest)
+    // Flush remaining buffer
+    if (fileBuffer.length > 0) {
+        dbManager.insertFiles(fileBuffer)
+    }
+
+    const stats = dbManager.getTotalStats()
     // Write checkpoint for Phase 1 completion
     checkpointLogger.writeCheckpoint({ phase: 1, tree, stats, folderPaths })
 
     // Return everything needed for the UI and the next phase
     onProgress({ type: 'complete', scanned, skipped, stats })
-    return { tree, manifest, stats }
+    return { tree, stats }
 }
 
 async function walkDir(dirPath, parentNode, manifest, onFile, state) {
@@ -147,9 +156,14 @@ async function walkDir(dirPath, parentNode, manifest, onFile, state) {
                 if (manifest.length >= MAX_MANIFEST_FILES) {
                     throw new Error(`Out of Memory Protection: Scan limit of ${MAX_MANIFEST_FILES} files reached.`)
                 }
-                manifest.push(fileEntry)
                 parentNode.children.push({ ...fileEntry, type: 'file' })
                 parentNode.stats[category] = (parentNode.stats[category] || 0) + 1
+
+                manifest.push(fileEntry)
+                if (manifest.length >= 500) {
+                    dbManager.insertFiles(manifest.splice(0, manifest.length))
+                }
+
                 onFile()
             }
         }

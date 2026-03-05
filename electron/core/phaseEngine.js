@@ -8,25 +8,55 @@ const fs = require('fs')
 const path = require('path')
 const crypto = require('crypto')
 const safetyGuard = require('./safetyGuard')
-const fileScanner = require('./fileScanner')
-const checkpointLogger = require('./checkpointLogger')
-const auditLogger = require('./auditLogger')
 const performanceController = require('./performanceController')
 const diskUtils = require('./diskUtils')
+const dbManager = require('./dbManager')
+const pathManager = require('./pathManager')
+const auditLogger = require('./auditLogger')
+const checkpointLogger = require('./checkpointLogger')
+const fileScanner = require('./fileScanner')
 
 const BATCH_SIZE = 50
 let _cancelled = false
+const claimedPaths = new Set();
 
-// ── Shared Helpers ──────────────────────────────────────────────────
+/**
+ * safeMove(src, dst)
+ */
+async function safeMove(src, dst) {
+    const fsPromises = require('fs').promises;
+    let finalDst = dst;
 
-function hashFile(filePath) {
+    const checkExists = (p) => {
+        const longP = pathManager.toLongPath(p);
+        return fs.existsSync(longP) || claimedPaths.has(longP);
+    };
+
+    // Auto-rename if destination already exists or is claimed in this batch
+    if (checkExists(finalDst)) {
+        const parsed = path.parse(dst);
+        let counter = 1;
+        while (checkExists(finalDst)) {
+            finalDst = path.join(parsed.dir, `${parsed.name}_${counter}${parsed.ext}`);
+            counter++;
+        }
+    }
+
+    // Claim the path immediately (before async operations)
+    claimedPaths.add(pathManager.toLongPath(finalDst));
+
     try {
-        const hash = crypto.createHash('sha256')
-        const data = fs.readFileSync(require('./pathManager').toLongPath(filePath))
-        hash.update(data)
-        return hash.digest('hex')
-    } catch {
-        return null
+        await fsPromises.rename(pathManager.toLongPath(src), pathManager.toLongPath(finalDst));
+        return finalDst;
+    } catch (err) {
+        if (err.code === 'EXDEV') {
+            await fsPromises.copyFile(pathManager.toLongPath(src), pathManager.toLongPath(finalDst));
+            await fsPromises.unlink(pathManager.toLongPath(src));
+            return finalDst;
+        }
+        // If it fails, remove from claim (though usually it won't)
+        claimedPaths.delete(pathManager.toLongPath(finalDst));
+        throw err;
     }
 }
 
@@ -49,11 +79,11 @@ async function phase1_scan(context, onProgress) {
 async function phase2_preview(context, onProgress) {
     onProgress({ phase: 2, status: 'preview', message: 'Generating AI-driven action plan…' })
 
-    const { manifest, selectedDrive, destinationMap } = context
-    const stats = fileScanner.buildStats(manifest)
+    const stats = dbManager.getTotalStats()
+    const { selectedDrive, destinationMap } = context
+    const baseDir = selectedDrive?.mountPath || 'C:\\'
 
     const recommendations = []
-    const baseDir = selectedDrive?.mountPath || 'C:\\'
 
     // Hierarchy: 1. User specified mapping, 2. Logical recommendation based on OS standard, 3. Hard-coded fallback
     const mappings = {
@@ -71,7 +101,11 @@ async function phase2_preview(context, onProgress) {
     const duplicatePool = new Map()
     const duplicates = []
 
-    for (const file of manifest) {
+    // Process files in batches from DB to avoid memory spikes
+    const allFiles = dbManager.getAllFiles()
+
+    const updates = []
+    for (const file of allFiles) {
         const key = `${file.name}_${file.size}`
         if (duplicatePool.has(key)) {
             duplicates.push(file.srcPath)
@@ -80,14 +114,19 @@ async function phase2_preview(context, onProgress) {
         }
 
         const dstFolder = mappings[file.category] || mappings.other
+        const suggestedDst = path.join(dstFolder, file.name)
+
         recommendations.push({
             fileId: file.id,
             fileName: file.name,
             srcPath: file.srcPath,
             category: file.category,
-            suggestedDst: dstFolder,
+            suggestedDst: suggestedDst,
             isDuplicate: duplicatePool.has(key) && duplicatePool.get(key) !== file.srcPath
         })
+
+        // Save to DB for Phase 4
+        dbManager.updateSuggestedDst(file.id, suggestedDst)
     }
 
     const actionPlan = {
@@ -133,14 +172,15 @@ async function phase4_execute(context, onProgress) {
     const errors = []
     const movedFiles = {} // srcPath -> dstPath
 
+    const fsPromises = require('fs').promises
+
     for (let i = 0; i < plannedMoves.length; i += BATCH_SIZE) {
         if (_cancelled) break
         await performanceController.waitIfPaused()
 
         const batch = plannedMoves.slice(i, i + BATCH_SIZE)
-
-        for (const move of batch) {
-            if (_cancelled) break
+        const copyPromises = batch.map(async (move) => {
+            if (_cancelled) return null
 
             const validation = safetyGuard.validateTarget(move.srcPath, path.dirname(move.dstPath))
             if (!validation.ok) {
@@ -151,39 +191,19 @@ async function phase4_execute(context, onProgress) {
                 })
                 failedFiles++
                 errors.push({ file: move.srcPath, reason: validation.reason })
-                continue
+                return
             }
 
             try {
-                fs.mkdirSync(require('./pathManager').toLongPath(path.dirname(move.dstPath)), { recursive: true })
-            } catch (err) {
-                // If directory creation fails, log it
-                auditLogger.log({ phase: 4, action: 'ERROR', srcPath: move.srcPath, dstPath: move.dstPath, error: `Dir creation failed: ${err.message}` })
-                failedFiles++
-                errors.push({ file: move.srcPath, reason: `Dir creation failed: ${err.message}` })
-                continue
-            }
+                await fsPromises.mkdir(pathManager.toLongPath(path.dirname(move.dstPath)), { recursive: true })
 
-            try {
-                const srcHash = hashFile(move.srcPath)
-                if (!srcHash) throw new Error("Could not read source file hash")
+                // Use the new safeMove helper
+                const actualDst = await safeMove(move.srcPath, move.dstPath)
 
-                fs.copyFileSync(require('./pathManager').toLongPath(move.srcPath), require('./pathManager').toLongPath(move.dstPath))
-
-                const dstHash = hashFile(move.dstPath)
-                if (srcHash !== dstHash) {
-                    // Safety check: if copying somehow corrupted the file, delete the bad copy
-                    try { if (fs.existsSync(require('./pathManager').toLongPath(move.dstPath))) fs.unlinkSync(require('./pathManager').toLongPath(move.dstPath)) } catch { }
-                    throw new Error(`Data integrity failure: Hash mismatch after copy. Operation aborted for this file.`)
-                }
-
-                // Verification successful, delete source
-                fs.unlinkSync(require('./pathManager').toLongPath(move.srcPath))
-
-                movedFiles[move.srcPath] = move.dstPath
+                movedFiles[move.srcPath] = actualDst
                 auditLogger.log({
                     phase: 4, action: 'MOVED',
-                    srcPath: move.srcPath, dstPath: move.dstPath,
+                    srcPath: move.srcPath, dstPath: actualDst,
                     size: move.size || 0, status: 'OK',
                 })
                 processedFiles++
@@ -198,7 +218,9 @@ async function phase4_execute(context, onProgress) {
                 failedFiles++
                 errors.push({ file: move.srcPath, reason: err.message })
             }
-        }
+        })
+
+        await Promise.all(copyPromises)
 
         const percent = Math.round(((i + batch.length) / plannedMoves.length) * 100)
         onProgress({
@@ -388,6 +410,7 @@ async function startRollback(movedFiles, onProgress) {
 
 async function startPhase(phaseNumber, context, onProgress) {
     _cancelled = false
+    claimedPaths.clear()
     switch (phaseNumber) {
         case 1: return await phase1_scan(context, onProgress)
         case 2: return await phase2_preview(context, onProgress)
