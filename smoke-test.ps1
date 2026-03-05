@@ -1,4 +1,6 @@
 $env:ELECTRON_IS_DEV = '1'
+# CLEAR CONFLICTING ENV VARS
+Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
 
 # Start Vite in background
 $viteJob = Start-Job -ScriptBlock {
@@ -29,7 +31,6 @@ try {
 }
 catch {
     Write-Host "Vite did not respond on port $port!" -ForegroundColor Red
-    Receive-Job $viteJob | ForEach-Object { Write-Host $_ }
 }
 
 if (-not $viteOk) {
@@ -48,8 +49,10 @@ $stderrFile = "C:\Users\omg\OneDrive\Credit_Dispute_Letters\Desktop\WhereDidIPut
 "" | Out-File $stdoutFile
 "" | Out-File $stderrFile
 
+$electronExe = "C:\Users\omg\OneDrive\Credit_Dispute_Letters\Desktop\WhereDidIPutThat\node_modules\electron\dist\electron.exe"
+
 $proc = Start-Process `
-    -FilePath "C:\Users\omg\OneDrive\Credit_Dispute_Letters\Desktop\WhereDidIPutThat\node_modules\electron\dist\electron.exe" `
+    -FilePath $electronExe `
     -ArgumentList "." `
     -PassThru `
     -RedirectStandardError $stderrFile `
@@ -71,9 +74,6 @@ if (Test-Path $stderrFile) {
     if ($errContent -and $errContent.Trim()) {
         Write-Host "--- Electron STDERR ---" -ForegroundColor Yellow
         Write-Host $errContent.Trim()
-    }
-    else {
-        Write-Host "Stderr: clean (no errors)" -ForegroundColor Green
     }
 }
 

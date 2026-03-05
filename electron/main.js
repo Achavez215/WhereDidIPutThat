@@ -5,13 +5,19 @@
 
 'use strict'
 
-// Use CJS require for electron. 
-// When running inside Electron's main process, this returns the API object.
-const { app, BrowserWindow, ipcMain, dialog, session, nativeTheme } = require('electron')
-const path = require('path')
+// Standard Electron require.
+// Fixed: In some environments, ELECTRON_RUN_AS_NODE can hijack the resolution.
+// The smoke test now ensures this is cleared.
+const electron = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, session, nativeTheme } = electron
 
-// Dev mode detection
-const isDev = process.env.ELECTRON_IS_DEV === '1' || !app.isPackaged
+if (!app) {
+    console.error('CRITICAL: Electron app object is undefined.')
+    process.exit(1)
+}
+
+const path = require('path')
+const isDev = (process.env.ELECTRON_IS_DEV === '1') || (app && !app.isPackaged)
 
 let mainWindow = null
 const core = {}
@@ -42,7 +48,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-    // Lazy load core modules after app is ready
+    // Lazy load core modules after app is ready to ensure pathManager (app.getPath) works
     try {
         core.driveScanner = require('./core/driveScanner')
         core.safetyGuard = require('./core/safetyGuard')
@@ -134,7 +140,7 @@ function registerIpcHandlers() {
             csv: [{ name: 'CSV', extensions: ['csv'] }],
             html: [{ name: 'HTML Report', extensions: ['html'] }],
         }
-        const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {
+        const { filePath, canceled } = await dialog.showOpenDialog(mainWindow, {
             title: 'Export Report — WhereDidIPutThat',
             defaultPath: `wheredidiputhat_report_${Date.now()}.${format}`,
             filters: formatMap[format] || [{ name: format.toUpperCase(), extensions: [format] }],
