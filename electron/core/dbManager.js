@@ -91,9 +91,23 @@ function updateIsDuplicate(fileId, val) {
  * getPlannedMoves()
  * Returns all files that have a suggested destination, ready for Phase 4.
  */
-function getPlannedMoves() {
+/**
+ * getPlannedMoves(excludedPaths)
+ * Returns all files that have a suggested destination, excluding those in ignored folders.
+ */
+function getPlannedMoves(excludedPaths = []) {
     if (!db) return [];
-    return db.prepare('SELECT * FROM manifest WHERE suggestedDst IS NOT NULL AND suggestedDst != ""').all();
+
+    let query = 'SELECT * FROM manifest WHERE suggestedDst IS NOT NULL AND suggestedDst != ""';
+    const params = [];
+
+    if (excludedPaths.length > 0) {
+        const exclusionClauses = excludedPaths.map(p => `srcPath NOT LIKE ?`).join(' AND ');
+        query += ` AND (${exclusionClauses})`;
+        excludedPaths.forEach(p => params.push(`${p}%`));
+    }
+
+    return db.prepare(query).all(...params);
 }
 
 /**

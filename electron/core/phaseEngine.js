@@ -156,8 +156,9 @@ async function phase3_confirm(context, onProgress) {
 
 // ── Phase 4: Execution — Planned Moves ────────────────────────────
 async function phase4_execute(context, onProgress) {
+    const { excludedPaths } = context
     // If not provided (large scale), pull from DB
-    const plannedMoves = context.plannedMoves || dbManager.getPlannedMoves()
+    const plannedMoves = context.plannedMoves || dbManager.getPlannedMoves(Array.from(excludedPaths || []))
     if (!plannedMoves || plannedMoves.length === 0) return { ok: false, error: 'No planned moves found.' }
 
     const stats = dbManager.getStats()
@@ -176,6 +177,7 @@ async function phase4_execute(context, onProgress) {
     performanceController.start(plannedMoves.length)
     let processedFiles = 0
     let failedFiles = 0
+    let renamedCount = 0
     const errors = []
     const movedFiles = {} // srcPath -> dstPath
 
@@ -232,6 +234,7 @@ async function phase4_execute(context, onProgress) {
                     total: plannedMoves.length,
                     bytesProcessed,
                     totalBytes,
+                    renamed: renamedCount,
                     lastMove: { src: move.srcPath, dst: actualDst, wasRenamed },
                     collision: collisionData,
                     ...performanceController.getStats(),
@@ -280,11 +283,12 @@ async function phase4_execute(context, onProgress) {
         status: _cancelled ? 'cancelled' : (failedFiles > 0 ? 'partial' : 'done'),
         processed: processedFiles,
         failed: failedFiles,
+        renamed: renamedCount,
         errors,
         movedFiles
     })
 
-    return { ok: success, processed: processedFiles, failed: failedFiles, errors, movedFiles }
+    return { ok: success, processed: processedFiles, failed: failedFiles, renamed: renamedCount, errors, movedFiles }
 }
 
 // ── Phase 5: Validation & Integrity Check ─────────────────────────

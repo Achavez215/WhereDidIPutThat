@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../store/appStore'
 import ScanOverview from './ScanOverview'
 import ActionPlanCard from './ActionPlanCard'
+import { usePaginatedFiles } from '../hooks/usePaginatedFiles'
 
 const PHASE_META = [
     { num: 1, title: 'Intelligent Scan', desc: 'Hierarchical scan and classification.', icon: '🔍' },
@@ -59,23 +60,11 @@ export default function PhasePanel() {
     const [perfStats, setPerfStats] = useState(null)
     const [showBackupPrompt, setShowBackupPrompt] = useState(false)
     const [backupSkipped, setBackupSkipped] = useState(false)
-    const [previewFiles, setPreviewFiles] = useState([])
-    const [previewPage, setPreviewPage] = useState(1)
-    const [loadingPreview, setLoadingPreview] = useState(false)
     const perfPoll = useRef(null)
 
-    const loadPreviewFiles = async (page = 1, category = 'all') => {
-        setLoadingPreview(true)
-        try {
-            const files = await window.api.getFiles(category, page, 50)
-            setPreviewFiles(files)
-            setPreviewPage(page)
-        } catch (err) {
-            console.error('Failed to load preview files:', err)
-        } finally {
-            setLoadingPreview(false)
-        }
-    }
+    // Using the specialized pagination hook
+    const { files: previewFiles, loadMore, loading: loadingPreview, hasMore } = usePaginatedFiles('all')
+
 
     // Subscribe to IPC progress events
     useEffect(() => {
@@ -84,10 +73,6 @@ export default function PhasePanel() {
             setPhaseProgress(phase, data)
             if (data.status === 'done' || data.status === 'cancelled') {
                 setPhaseStatus(phase, data.status === 'cancelled' ? 'cancelled' : 'done')
-                // If Phase 2 is done, load first page of preview
-                if (phase === 2 && data.status !== 'cancelled') {
-                    loadPreviewFiles(1)
-                }
             }
             if (data.report) setReport(data.report)
             if (data.manifest) setManifest(data.manifest, data.stats, data.tree)
@@ -123,20 +108,8 @@ export default function PhasePanel() {
         }
 
         if (phaseNum === 4) {
-            // Generate plannedMoves based on approved actionPlan and exclusions
-            const approved = actionPlan?.recommendations || []
-            ctx.plannedMoves = approved
-                .filter(r => {
-                    // Filter out excluded parent folders
-                    const isParentExcluded = Array.from(excludedPaths).some(p => r.srcPath.startsWith(p))
-                    return !isParentExcluded
-                })
-                .map(r => ({
-                    srcPath: r.srcPath,
-                    dstPath: r.suggestedDst,
-                    size: manifest?.find(f => f.srcPath === r.srcPath)?.size || 0,
-                    category: r.category
-                }))
+            // Pass excluded paths to backend; let backend handle DB retrieval
+            ctx.excludedPaths = Array.from(excludedPaths)
         }
 
         if (phaseNum === 7) {
@@ -344,21 +317,15 @@ export default function PhasePanel() {
                                         )}
                                     </div>
                                     <div className="flex flex-center gap-4 mt-4">
-                                        <button
-                                            className="btn btn-ghost btn-xs"
-                                            disabled={previewPage <= 1}
-                                            onClick={() => loadPreviewFiles(previewPage - 1)}
-                                        >
-                                            Previous 50
-                                        </button>
-                                        <span className="text-xs text-muted">Page {previewPage}</span>
-                                        <button
-                                            className="btn btn-ghost btn-xs"
-                                            disabled={previewFiles.length < 50}
-                                            onClick={() => loadPreviewFiles(previewPage + 1)}
-                                        >
-                                            Next 50
-                                        </button>
+                                        {hasMore && (
+                                            <button
+                                                className="btn btn-ghost btn-sm"
+                                                disabled={loadingPreview}
+                                                onClick={loadMore}
+                                            >
+                                                {loadingPreview ? 'Loading…' : 'Load More Recommendations'}
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             )}
