@@ -92,6 +92,7 @@ function listTopLevelFolders(drivePath) {
             'Music', 'Videos', 'OneDrive',
         ]
 
+        // deno-lint-ignore no-node-globals
         const userHome = process.env.USERPROFILE || drivePath
         const entries = []
 

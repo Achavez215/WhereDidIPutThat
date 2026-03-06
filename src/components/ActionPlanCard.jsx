@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useAppStore } from '../store/appStore'
 
 export default function ActionPlanCard({ recommendation }) {
@@ -6,7 +6,7 @@ export default function ActionPlanCard({ recommendation }) {
     const [isEditing, setIsEditing] = useState(false)
     const [dst, setDst] = useState(recommendation.suggestedDst)
 
-    const handleSave = async () => {
+    const handleSave = () => {
         updateRecommendation(recommendation.fileId, dst)
         setIsEditing(false)
     }

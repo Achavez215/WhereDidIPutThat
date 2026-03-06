@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react'
+// deno-lint-ignore-file no-window
+import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../store/appStore'
 import ScanOverview from './ScanOverview'
 import ActionPlanCard from './ActionPlanCard'
@@ -59,7 +60,6 @@ export default function PhasePanel() {
 
     const [perfStats, setPerfStats] = useState(null)
     const [showBackupPrompt, setShowBackupPrompt] = useState(false)
-    const [backupSkipped, setBackupSkipped] = useState(false)
     const perfPoll = useRef(null)
 
     // Using the specialized pagination hook
@@ -129,7 +129,7 @@ export default function PhasePanel() {
             } else {
                 setPhaseStatus(7, 'error')
             }
-        } catch (err) {
+        } catch {
             setPhaseStatus(7, 'error')
         }
     }
@@ -158,7 +158,7 @@ export default function PhasePanel() {
                 setReport(result.report)
             }
             setPhaseStatus(phaseNum, result.ok ? 'done' : 'error')
-        } catch (err) {
+        } catch {
             setPhaseStatus(phaseNum, 'error')
         }
     }
@@ -437,7 +437,6 @@ export default function PhasePanel() {
                     }}
                     onSkip={() => {
                         setShowBackupPrompt(false)
-                        setBackupSkipped(true)
                         startPhase(3)
                     }}
                     onClose={() => setShowBackupPrompt(false)}
@@ -449,7 +448,7 @@ export default function PhasePanel() {
     )
 }
 
-function BackupModal({ onAccept, onSkip, onClose, selectedDrive, stats }) {
+function BackupModal({ onAccept, onSkip, onClose: _onClose, selectedDrive, stats }) {
     const [skipConfirm, setSkipConfirm] = useState(false)
     const [creating, setCreating] = useState(false)
     const [progress, setProgress] = useState(null)

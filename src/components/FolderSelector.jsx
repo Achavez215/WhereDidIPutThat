@@ -1,4 +1,3 @@
-import React from 'react'
 import { useAppStore } from '../store/appStore'
 
 const FOLDER_ICONS = {
@@ -46,7 +45,6 @@ export default function FolderSelector() {
         selectAllFolders, clearFolders, setStep,
     } = useAppStore()
 
-    const allSelected = topLevelFolders.length > 0 && selectedFolders.length === topLevelFolders.length
     const isChecked = (f) => !!selectedFolders.find(s => s.fullPath === f.fullPath)
 
     const userFolders = topLevelFolders.filter(f => f.isUserFolder)
