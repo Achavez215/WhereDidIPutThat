@@ -5,7 +5,6 @@
  */
 
 const fs = require('fs')
-const path = require('path')
 const pathManager = require('./pathManager')
 
 // Defer path resolution until called
@@ -34,7 +33,7 @@ function rotateLogs() {
             const archivePath = file.replace('.jsonl', `_${ts}.jsonl`)
             fs.renameSync(longFile, pathManager.toLongPath(archivePath))
         }
-    } catch { }
+    } catch { /* ignore rotation errors */ }
 }
 
 /**

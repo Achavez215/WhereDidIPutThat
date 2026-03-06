@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react'
+// deno-lint-ignore-file no-window
+import { useState, useEffect } from 'react'
 import { useAppStore } from '../store/appStore'
 
 export default function HistoryView() {
@@ -45,14 +46,6 @@ This will move ${session.fileCount} files back to their original locations.`
             alert(`Undo failed: ${err.message}`)
             setRollbackId(null)
         }
-    }
-
-    const formatBytes = (bytes) => {
-        if (!bytes) return '0 B'
-        const k = 1024
-        const sizes = ['B', 'KB', 'MB', 'GB']
-        const i = Math.floor(Math.log(bytes) / Math.log(k))
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
     }
 
     return (

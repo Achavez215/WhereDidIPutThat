@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from 'react'
-import { useAppStore } from '../store/appStore'
+import { useEffect, useState } from 'react'
 
 const ACTION_LABELS = {
     MOVED: { label: 'Moved', cls: 'log-MOVED' },

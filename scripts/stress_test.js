@@ -21,7 +21,6 @@ Module.prototype.require = function () {
 }
 
 const fs = require('fs')
-const pathManager = require('../electron/core/pathManager')
 const fileScanner = require('../electron/core/fileScanner')
 const phaseEngine = require('../electron/core/phaseEngine')
 const dbManager = require('../electron/core/dbManager')
@@ -33,7 +32,7 @@ async function runTests() {
     if (fs.existsSync(baseDir)) {
         try {
             fs.rmSync(baseDir, { recursive: true, force: true })
-        } catch (e) { }
+        } catch { /* ignore cleanup error */ }
     }
     fs.mkdirSync(baseDir)
 
@@ -47,6 +46,7 @@ async function runTests() {
     }
 
     const scanResult = await fileScanner.scanFolders([srcDir], (p) => {
+        // deno-lint-ignore no-node-globals
         if (p.type === 'count' && p.scanned % 500 === 0) process.stdout.write('.')
     })
 
@@ -72,8 +72,9 @@ async function runTests() {
     ]
 
     let collisionReported = false
-    const moveResult = await phaseEngine.startPhase(4, { plannedMoves }, (p) => {
+    await phaseEngine.startPhase(4, { plannedMoves }, (p) => {
         if (p.status === 'running') {
+            // deno-lint-ignore no-node-globals
             process.stdout.write('>')
             if (p.collision) {
                 collisionReported = true
@@ -100,5 +101,6 @@ async function runTests() {
 
 runTests().catch(err => {
     console.error('Test failed:', err)
+    // deno-lint-ignore no-node-globals
     if (typeof Deno !== "undefined") { Deno.exit(1); } else if (typeof process !== "undefined") { process.exit(1); }
 })

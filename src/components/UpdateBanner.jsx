@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-window
 import { useEffect, useState } from 'react'
 
 /**

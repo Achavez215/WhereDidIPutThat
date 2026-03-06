@@ -6,7 +6,6 @@
 
 const fs = require('fs')
 const path = require('path')
-const crypto = require('crypto')
 const safetyGuard = require('./safetyGuard')
 const performanceController = require('./performanceController')
 const diskUtils = require('./diskUtils')
@@ -76,14 +75,12 @@ async function phase1_scan(context, onProgress) {
 }
 
 // ── Phase 2: Classification & Mapping Preview ──────────────────────
-async function phase2_preview(context, onProgress) {
+function phase2_preview(context, onProgress) {
     onProgress({ phase: 2, status: 'preview', message: 'Generating AI-driven action plan…' })
 
     const stats = dbManager.getStats()
     const { selectedDrive, destinationMap } = context
     const baseDir = selectedDrive?.mountPath || 'C:\\'
-
-    const recommendations = []
 
     // Hierarchy: 1. User specified mapping, 2. Logical recommendation based on OS standard, 3. Hard-coded fallback
     const mappings = {
@@ -148,7 +145,7 @@ async function phase2_preview(context, onProgress) {
 }
 
 // ── Phase 3: Confirmation ──────────────────────────────────────────
-async function phase3_confirm(context, onProgress) {
+function phase3_confirm(_context, onProgress) {
     onProgress({ phase: 3, status: 'done', message: 'Ready for execution' })
     checkpointLogger.writeCheckpoint({ phase: 3, complete: true })
     return { ok: true }
@@ -177,7 +174,7 @@ async function phase4_execute(context, onProgress) {
     performanceController.start(plannedMoves.length)
     let processedFiles = 0
     let failedFiles = 0
-    let renamedCount = 0
+    const renamedCount = 0
     const errors = []
     const movedFiles = {} // srcPath -> dstPath
 
@@ -307,7 +304,7 @@ async function phase4_execute(context, onProgress) {
 }
 
 // ── Phase 5: Validation & Integrity Check ─────────────────────────
-async function phase5_validate(context, onProgress) {
+function phase5_validate(context, onProgress) {
     const { movedFiles } = context
     if (!movedFiles) return { ok: true, passed: 0, missing: 0 }
 
@@ -319,7 +316,7 @@ async function phase5_validate(context, onProgress) {
 
     let passed = 0, missing = 0, corrupt = 0
 
-    for (const [src, dst] of sample) {
+    for (const [_src, dst] of sample) {
         if (!fs.existsSync(require('./pathManager').toLongPath(dst))) {
             missing++
             auditLogger.log({ phase: 5, action: 'VALIDATION_FAILED', message: 'File missing', dstPath: dst })
@@ -345,7 +342,7 @@ async function phase5_validate(context, onProgress) {
 }
 
 // ── Phase 6: Reporting ──────────────────────────────────────────────
-async function phase6_report(context, onProgress) {
+function phase6_report(_context, onProgress) {
     onProgress({ phase: 6, status: 'generating', message: 'Generating final session report…' })
     const logs = auditLogger.getAll()
 
@@ -364,7 +361,7 @@ async function phase6_report(context, onProgress) {
 }
 
 // ── Phase 7: Cleanup — Search for empty folders ──────────────────
-async function phase7_cleanup(context, onProgress) {
+function phase7_cleanup(context, onProgress) {
     onProgress({ phase: 7, status: 'scanning', message: 'Scanning for empty folders…' })
     const { folderPaths } = context
     const emptyFolders = []
@@ -422,7 +419,7 @@ async function phase7_cleanup(context, onProgress) {
 
 // ── Rollback Logic ──────────────────────────────────────────────────
 
-async function startRollback(movedFiles, onProgress) {
+function startRollback(movedFiles, onProgress) {
     const entries = Object.entries(movedFiles)
     let processed = 0
     let failed = 0
@@ -473,7 +470,7 @@ function cancel() {
     _cancelled = true
 }
 
-async function startCleanup(context) {
+function startCleanup(context) {
     let deleted = 0
     for (const folder of context.folders || []) {
         try {
@@ -482,7 +479,7 @@ async function startCleanup(context) {
                 fs.rmdirSync(longFolder)
                 deleted++
             }
-        } catch { }
+        } catch { /* ignore errors removing individual empty folders */ }
     }
     return { ok: true, deleted }
 }
